@@ -57,15 +57,18 @@ Los errores de tipo (p. ej. enviar texto en `monto`) los responde FastAPI con 42
    ```sql
    CREATE DATABASE control_gastos;
    ```
-2. Crear el entorno virtual e instalar dependencias:
-   ```bash
+2. Crear el entorno virtual e instalar dependencias (PowerShell en Windows):
+   ```powershell
    py -3.12 -m venv .venv
-   .venv\Scripts\activate        # Windows  (Linux/Mac: source .venv/bin/activate)
+   .venv\Scripts\activate
    pip install -r requirements.txt
    ```
+   En Linux/Mac la activación es `source .venv/bin/activate`. Si PowerShell
+   responde que la ejecución de scripts está deshabilitada, ejecuta una vez
+   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 3. Configurar la conexión (opcional; este es el valor por defecto):
-   ```bash
-   set DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/control_gastos
+   ```powershell
+   $env:DATABASE_URL = "postgresql+psycopg2://postgres:postgres@localhost:5432/control_gastos"
    ```
 
 ## Ejecutar la aplicación
