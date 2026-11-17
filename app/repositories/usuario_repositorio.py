@@ -1,8 +1,9 @@
+from datetime import date, datetime
 from typing import List, Optional, Tuple
 
 from sqlalchemy import func
 
-from app.models import Movimiento, Plan, TipoCuenta, Usuario
+from app.models import Movimiento, Plan, RolUsuario, TipoCuenta, Usuario
 from app.planes import PRECIOS
 
 
@@ -64,11 +65,29 @@ class RepositorioUsuarios:
         )
 
     def contar_titulares(self, **filtros) -> int:
-        """Cuentas principales (sin contar a los miembros de un equipo)."""
-        return self.contar(Usuario.negocio_id.is_(None), **filtros)
+        """Cuentas de clientes: sin miembros de un equipo ni administradores."""
+        return self.contar(Usuario.negocio_id.is_(None), Usuario.rol == RolUsuario.USUARIO, **filtros)
 
     def contar_movimientos(self) -> int:
         return self.db.query(func.count(Movimiento.id)).scalar() or 0
+
+    def contar_registros_entre(self, inicio: datetime, fin: datetime, tipo: TipoCuenta) -> int:
+        """Cuentas de clientes creadas en [inicio, fin)."""
+        return self.contar(
+            Usuario.negocio_id.is_(None),
+            Usuario.rol == RolUsuario.USUARIO,
+            Usuario.creado_en >= inicio,
+            Usuario.creado_en < fin,
+            tipo_cuenta=tipo,
+        )
+
+    def contar_movimientos_entre(self, inicio: date, fin: date) -> int:
+        return (
+            self.db.query(func.count(Movimiento.id))
+            .filter(Movimiento.fecha >= inicio, Movimiento.fecha < fin)
+            .scalar()
+            or 0
+        )
 
     def ingreso_mensual_estimado(self) -> int:
         """Suma del precio de las cuentas Pro activas (ingreso recurrente mensual)."""

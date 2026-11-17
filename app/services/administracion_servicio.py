@@ -1,9 +1,12 @@
+from datetime import date, datetime, timezone
 from typing import List
 
 from sqlalchemy.orm import Session
 
 from app.models import Plan, RolUsuario, TipoCuenta, Usuario
 from app.repositories import RepositorioUsuarios
+from app.repositories.movimiento_repositorio import rango_del_mes
+from app.schemas.usuario import ActividadMes
 from app.schemas import (
     CambioUsuarioAdmin,
     EstadisticasAdmin,
@@ -45,7 +48,28 @@ class ServicioAdministracion:
             cuentas_pro=r.contar_titulares(plan=Plan.PRO),
             solicitudes_pro=r.contar(Usuario.solicito_pro_en.isnot(None), plan=Plan.GRATIS),
             ingreso_mensual_estimado=r.ingreso_mensual_estimado(),
+            actividad_por_mes=self._actividad_por_mes(),
         )
+
+    def _actividad_por_mes(self, meses: int = 6) -> List[ActividadMes]:
+        """Cuentas nuevas y movimientos de los últimos meses (solo cantidades)."""
+        hoy = date.today()
+        actividad = []
+        for atras in range(meses - 1, -1, -1):
+            total = hoy.year * 12 + hoy.month - 1 - atras
+            anio, mes = total // 12, total % 12 + 1
+            inicio, fin = rango_del_mes(anio, mes)
+            desde = datetime(inicio.year, inicio.month, 1, tzinfo=timezone.utc)
+            hasta = datetime(fin.year, fin.month, 1, tzinfo=timezone.utc)
+            actividad.append(
+                ActividadMes(
+                    mes=f"{anio:04d}-{mes:02d}",
+                    cuentas_personales=self.repositorio.contar_registros_entre(desde, hasta, TipoCuenta.PERSONAL),
+                    cuentas_negocio=self.repositorio.contar_registros_entre(desde, hasta, TipoCuenta.NEGOCIO),
+                    movimientos=self.repositorio.contar_movimientos_entre(inicio, fin),
+                )
+            )
+        return actividad
 
     def actualizar_usuario(self, usuario_id: int, cambios: CambioUsuarioAdmin) -> Usuario:
         usuario = self.repositorio.obtener_por_id(usuario_id)
@@ -66,4 +90,6 @@ class ServicioAdministracion:
                 )
             if datos["plan"] == Plan.PRO:
                 datos["solicito_pro_en"] = None  # la solicitud queda atendida
+        if datos.pop("descartar_solicitud", False):
+            datos["solicito_pro_en"] = None
         return self.repositorio.actualizar(usuario, **datos)

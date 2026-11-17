@@ -2,8 +2,8 @@
 import { conTooltip } from "./ui.js";
 import { escapar, formatoCompacto, formatoMoneda } from "./formato.js";
 
-const filaTooltip = (nombre, colorVar, valor) =>
-  `<div class="tooltip-fila"><span><i style="background:var(${colorVar})"></i>${nombre}</span><b>${formatoMoneda(valor)}</b></div>`;
+const filaTooltip = (nombre, colorVar, valor, formato = formatoMoneda) =>
+  `<div class="tooltip-fila"><span><i style="background:var(${colorVar})"></i>${nombre}</span><b>${formato(valor)}</b></div>`;
 
 /**
  * Barras horizontales ordenadas de mayor a menor.
@@ -45,22 +45,36 @@ function escalaRedonda(maximo, divisiones = 4) {
   return { paso, tope: Math.ceil(maximo / paso) * paso };
 }
 
+const balance = (g) => `Balance: ${formatoMoneda(g.valores[0] - g.valores[1])}`;
+
 /**
  * Columnas agrupadas (una columna por serie dentro de cada grupo).
  * grupos: [{ etiqueta, titulo, valores: [n, n], actual? }]
  * series: [{ nombre, colorVar }]
+ * opciones: por defecto muestra pesos; para cantidades usar
+ *   { formatoValor: (n) => n, formatoEje: (n) => n, enteros: true, nota: null }
  */
-export function columnasAgrupadas(contenedor, grupos, series) {
+export function columnasAgrupadas(contenedor, grupos, series, opciones = {}) {
+  const {
+    formatoValor = formatoMoneda,
+    formatoEje = formatoCompacto,
+    enteros = false,
+    nota = balance,
+    descripcion = "Comparación de ingresos y gastos por mes",
+  } = opciones;
   const maximo = Math.max(0, ...grupos.flatMap((g) => g.valores));
-  const { paso, tope } = escalaRedonda(maximo || 1000);
+  const escala = escalaRedonda(maximo || (enteros ? 4 : 1000));
+  // Con cantidades (cuentas, movimientos) el eje no debe mostrar 0,5 o 2,5.
+  const paso = enteros ? Math.max(1, Math.ceil(escala.paso)) : escala.paso;
+  const tope = enteros ? Math.max(paso, Math.ceil(maximo / paso) * paso) : escala.tope;
   const marcas = [];
   for (let valor = 0; valor <= tope + paso / 2; valor += paso) marcas.push(valor);
   const altura = (valor) => `${(valor / tope) * 100}%`;
 
   contenedor.innerHTML = `
-    <div class="columnas" style="--grupos:${grupos.length}" role="img" aria-label="Comparación de ingresos y gastos por mes. Usa la vista de tabla para ver los valores.">
+    <div class="columnas" style="--grupos:${grupos.length}" role="img" aria-label="${escapar(descripcion)}. Usa la vista de tabla para ver los valores.">
       <div class="columnas-y" aria-hidden="true">
-        ${marcas.map((v) => `<span style="bottom:${altura(v)}">${formatoCompacto(v)}</span>`).join("")}
+        ${marcas.map((v) => `<span style="bottom:${altura(v)}">${formatoEje(v)}</span>`).join("")}
       </div>
       <div class="columnas-trazado">
         ${marcas.map((v) => `<span class="columnas-linea" style="bottom:${altura(v)}"></span>`).join("")}
@@ -88,12 +102,11 @@ export function columnasAgrupadas(contenedor, grupos, series) {
 
   contenedor.querySelectorAll(".columnas-grupo").forEach((columna, i) => {
     const g = grupos[i];
-    const [ingresos, gastos] = g.valores;
     conTooltip(
       columna,
       `<strong>${escapar(g.titulo)}</strong>
-       ${g.valores.map((v, s) => filaTooltip(series[s].nombre, series[s].colorVar, v)).join("")}
-       <div class="tooltip-nota">Balance: ${formatoMoneda(ingresos - gastos)}</div>`
+       ${g.valores.map((v, s) => filaTooltip(series[s].nombre, series[s].colorVar, v, formatoValor)).join("")}
+       ${nota ? `<div class="tooltip-nota">${nota(g)}</div>` : ""}`
     );
   });
 }

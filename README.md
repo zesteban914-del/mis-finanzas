@@ -41,9 +41,19 @@ recibe en `/auth/yo` para mostrar u ocultar opciones):
 | Empleado | ✓ | ✓ | — | — | — | — |
 | Contador | ✓ | — | ✓ | ✓ | — | — |
 
-El **administrador de la plataforma** es otro rol: gestiona cuentas (activar,
-desactivar, cambiar plan o rol) y ve métricas del negocio (cuentas, ingreso
-mensual estimado), pero **nunca** los montos ni los movimientos de nadie.
+El **administrador de la plataforma** es otro rol, con su propia **consola de
+administración** (barra lateral azul marino y etiqueta ADMIN):
+
+- **Resumen:** ingreso mensual estimado, cuentas de clientes, conversión a Pro,
+  cuentas nuevas y uso por mes, distribución por tipo y plan, últimos registros.
+- **Usuarios:** búsqueda y filtros (personales, negocios, equipos, Pro,
+  desactivadas); activar o desactivar cuentas y cambiar plan o rol.
+- **Solicitudes Pro:** bandeja para activar el plan o descartar la solicitud.
+- **Mi cuenta:** nombre y contraseña.
+
+Un administrador **no lleva finanzas propias**: no tiene permisos ni funciones
+financieras y la API le responde 403 si lo intenta. Tampoco ve nunca montos
+ni movimientos de los usuarios, solo cantidades.
 
 ## Planes
 

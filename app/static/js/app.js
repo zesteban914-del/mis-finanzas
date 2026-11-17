@@ -19,10 +19,15 @@ import * as cajas from "./vistas/cajas.js";
 import * as equipo from "./vistas/equipo.js";
 import * as cuenta from "./vistas/cuenta.js";
 import * as administracion from "./vistas/administracion.js";
+import * as resumenAdmin from "./vistas/resumen-admin.js";
+import * as solicitudes from "./vistas/solicitudes.js";
 import { renderizarAutenticacion } from "./vistas/autenticacion.js";
 import { abrirFormularioMovimiento } from "./vistas/formulario-movimiento.js";
 
-const VISTAS = { panel, movimientos, presupuestos, recurrentes, metas, categorias, cajas, deudas, equipo, cuenta, administracion };
+const VISTAS = {
+  panel, movimientos, presupuestos, recurrentes, metas, categorias, cajas, deudas, equipo, cuenta,
+  "resumen-admin": resumenAdmin, administracion, solicitudes,
+};
 const RUTAS_PUBLICAS = ["ingresar", "registro"];
 const ORDEN_INICIO = ["panel", "movimientos", "cuenta"];
 
@@ -45,7 +50,7 @@ function vistaPermitida(nombre) {
 }
 
 // Un administrador de la plataforma empieza en su panel; el resto, en el primero que pueda ver.
-const vistaInicial = () => (esAdministrador() ? "administracion" : ORDEN_INICIO.find(vistaPermitida));
+const vistaInicial = () => (esAdministrador() ? "resumen-admin" : ORDEN_INICIO.find(vistaPermitida));
 
 /* Decide qué mostrar: pantalla de ingreso o la aplicación --------------------- */
 let avisoPendiente = "";
@@ -87,6 +92,7 @@ async function mostrarAplicacion() {
   pantallaAutenticacion.replaceChildren();
   pantallaApp.hidden = false;
   pintarUsuario();
+  actualizarContadorSolicitudes();
   if (!recurrentesGenerados) {
     recurrentesGenerados = true;
     await generarRecurrentes();
@@ -116,12 +122,15 @@ function pintarUsuario() {
   document.getElementById("usuario-avatar").textContent = iniciales;
   document.getElementById("usuario-nombre").innerHTML =
     `${escapar(usuario.nombre)}${usuario.plan === "PRO" ? ' <span class="insignia-pro">PRO</span>' : ""}`;
+  const admin = esAdministrador();
+  document.body.classList.toggle("modo-admin", admin); // otra identidad visual para la consola
   document.getElementById("usuario-detalle").textContent = usuario.negocio_id
     ? `${ROLES_NEGOCIO[usuario.rol_negocio]} · ${usuario.nombre_negocio}`
-    : esAdministrador() ? `Administrador · ${usuario.email}` : usuario.email;
-  document.getElementById("marca-subtitulo").textContent = esNegocio()
-    ? usuario.nombre_negocio || "Cuenta de negocio"
-    : "Finanzas personales";
+    : admin ? "Administrador de la plataforma" : usuario.email;
+  document.getElementById("marca-subtitulo").textContent = admin
+    ? "Consola de administración"
+    : esNegocio() ? usuario.nombre_negocio || "Cuenta de negocio" : "Finanzas personales";
+  document.getElementById("nav-cuenta").textContent = admin ? "Mi cuenta" : "Mi cuenta y plan";
   document.getElementById("nav-deudas").textContent = esNegocio() ? "Por cobrar y pagar" : "Deudas y préstamos";
 
   // Menú: cada enlace se muestra solo si el usuario puede usarlo; los grupos vacíos se ocultan.
@@ -142,7 +151,7 @@ async function mostrarVista({ conEsqueleto = true } = {}) {
   const carga = ++ultimaCarga;
   ocultarTooltip();
   const enlace = enlaceDe(nombre);
-  document.title = `${enlace.textContent.trim()} · Mis Finanzas`;
+  document.title = `${enlace.querySelector("span").textContent.trim()} · Mis Finanzas`;
   document.querySelectorAll(".navegacion [data-vista]").forEach((e) => {
     const activo = e === enlace;
     e.classList.toggle("activo", activo);
@@ -165,8 +174,26 @@ async function mostrarVista({ conEsqueleto = true } = {}) {
 
 window.addEventListener("hashchange", enrutar);
 bus.addEventListener("refrescar", () => {
-  if (obtenerToken()) mostrarVista({ conEsqueleto: false });
+  if (!obtenerToken()) return;
+  mostrarVista({ conEsqueleto: false });
+  actualizarContadorSolicitudes();
 });
+
+/** Número de solicitudes de Pro pendientes junto al enlace del menú (solo administradores). */
+async function actualizarContadorSolicitudes() {
+  const contador = document.getElementById("contador-solicitudes");
+  if (!esAdministrador()) {
+    contador.hidden = true;
+    return;
+  }
+  try {
+    const { solicitudes_pro: pendientes } = await api.admin.estadisticas();
+    contador.textContent = pendientes;
+    contador.hidden = pendientes === 0;
+  } catch {
+    contador.hidden = true;
+  }
+}
 bus.addEventListener("usuario-actualizado", () => {
   pintarUsuario();
   enrutar();
@@ -174,6 +201,7 @@ bus.addEventListener("usuario-actualizado", () => {
 
 /* Cierre de sesión (por botón o porque el servidor la rechazó) ----------------- */
 bus.addEventListener("sesion-cerrada", (evento) => {
+  document.body.classList.remove("modo-admin");
   avisoPendiente = evento.detail.motivo;
   estado.mes = mesActual();
   movimientos.establecerFiltros({});

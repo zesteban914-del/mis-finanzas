@@ -7,11 +7,14 @@ Dos ejes independientes:
 
 Esta tabla es la única fuente de verdad: el backend la usa para permitir
 o negar, y la interfaz la recibe en /auth/yo para mostrar u ocultar.
+
+Las cuentas de ADMINISTRADOR de la plataforma no tienen permisos ni
+funciones financieras: solo administran (sección /admin).
 """
 
 import enum
 
-from app.models.usuario import RolNegocio, TipoCuenta
+from app.models.usuario import RolNegocio, RolUsuario, TipoCuenta
 
 
 class Permiso(str, enum.Enum):
@@ -52,10 +55,14 @@ MENSAJES_FUNCION = {
 
 
 def permisos_de(usuario) -> frozenset:
+    if usuario.rol == RolUsuario.ADMIN:
+        return frozenset()
     if usuario.tipo_cuenta == TipoCuenta.PERSONAL:
         return TODOS_LOS_PERMISOS - {Permiso.GESTIONAR_EQUIPO}
     return PERMISOS_POR_ROL_NEGOCIO[usuario.rol_negocio or RolNegocio.PROPIETARIO]
 
 
 def funciones_de(usuario) -> frozenset:
+    if usuario.rol == RolUsuario.ADMIN:
+        return frozenset()
     return FUNCIONES_POR_TIPO[usuario.tipo_cuenta]

@@ -5,7 +5,7 @@ import { icono } from "../iconos.js";
 import { cabecera } from "../componentes.js";
 import { escapar, formatoFecha, formatoMoneda } from "../formato.js";
 import { mostrarPolitica } from "../legal.js";
-import { actualizarUsuario, esNegocio, usuarioActual } from "../sesion.js";
+import { actualizarUsuario, esAdministrador, esNegocio, usuarioActual } from "../sesion.js";
 import { notificar } from "../ui.js";
 
 const ROLES = { PROPIETARIO: "Propietario", EMPLEADO: "Empleado", CONTADOR: "Contador" };
@@ -13,15 +13,19 @@ const ROLES = { PROPIETARIO: "Propietario", EMPLEADO: "Empleado", CONTADOR: "Con
 export async function renderizar(contenedor) {
   const usuario = usuarioActual();
   const esMiembro = Boolean(usuario.negocio_id);
-  const [planes, opciones] = await Promise.all([api.planes.catalogo(), api.auth.opciones()]);
+  // El administrador de la plataforma no tiene plan ni datos personales o de negocio.
+  const admin = esAdministrador();
+  const [planes, opciones] = admin
+    ? [[], { sectores: {}, objetivos: {} }]
+    : await Promise.all([api.planes.catalogo(), api.auth.opciones()]);
   const opcionesDe = (mapa, actual) =>
     `<option value="">Sin especificar</option>` +
     Object.entries(mapa).map(([v, t]) => `<option value="${v}" ${v === actual ? "selected" : ""}>${escapar(t)}</option>`).join("");
 
   contenedor.innerHTML = `
-    ${cabecera({ titulo: "Mi cuenta y plan", subtitulo: escapar(usuario.email) })}
+    ${cabecera({ titulo: admin ? "Mi cuenta" : "Mi cuenta y plan", subtitulo: escapar(usuario.email) })}
 
-    <section class="seccion">
+    <section class="seccion" ${admin ? "hidden" : ""}>
       <header class="seccion-cabecera"><div><h2>Plan</h2>
         <p>${esMiembro ? `Tu equipo usa el plan de ${escapar(usuario.nombre_negocio)}.` : "Empieza gratis y mejora cuando lo necesites."}</p></div>
       </header>
@@ -39,19 +43,25 @@ export async function renderizar(contenedor) {
           <div>
             <h2 class="tarjeta-titulo">Perfil</h2>
             <p class="tarjeta-subtitulo">
-              ${esMiembro
-                ? `${ROLES[usuario.rol_negocio]} en <b>${escapar(usuario.nombre_negocio)}</b>`
-                : `Cuenta ${esNegocio() ? "de negocio" : "personal"} · desde ${formatoFecha(usuario.creado_en.slice(0, 10))}`}
+              ${admin
+                ? `Administrador de la plataforma · desde ${formatoFecha(usuario.creado_en.slice(0, 10))}`
+                : esMiembro
+                  ? `${ROLES[usuario.rol_negocio]} en <b>${escapar(usuario.nombre_negocio)}</b>`
+                  : `Cuenta ${esNegocio() ? "de negocio" : "personal"} · desde ${formatoFecha(usuario.creado_en.slice(0, 10))}`}
             </p>
           </div>
-          <span class="insignia-rol">${icono(esNegocio() ? "tienda" : "persona")}${esNegocio() ? "Negocio" : "Personal"}</span>
+          ${
+            admin
+              ? `<span class="insignia-rol insignia-rol--admin">${icono("escudo")}Administrador</span>`
+              : `<span class="insignia-rol">${icono(esNegocio() ? "tienda" : "persona")}${esNegocio() ? "Negocio" : "Personal"}</span>`
+          }
         </header>
         <label class="campo">
-          <span class="campo-etiqueta">${esNegocio() && !esMiembro ? "Nombre del negocio" : "Nombre"}</span>
+          <span class="campo-etiqueta">${esNegocio() && !esMiembro && !admin ? "Nombre del negocio" : "Nombre"}</span>
           <input class="entrada" name="nombre" maxlength="80" value="${escapar(usuario.nombre)}">
         </label>
         ${
-          esMiembro
+          esMiembro || admin
             ? ""
             : esNegocio()
               ? `<div class="campos-fila">

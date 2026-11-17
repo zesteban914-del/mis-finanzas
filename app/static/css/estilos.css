@@ -29,6 +29,7 @@
   /* Identidad de las series: siempre el mismo color para lo mismo */
   --serie-ingreso: #2a78d6;
   --serie-gasto: #eb6834;
+  --serie-3: #1baf7a;
   --ingreso-texto: #1c5cab;
 
   /* Estados (reservados: nunca se usan como color de serie) */
@@ -69,6 +70,7 @@
     --primario-texto: #121211;
     --serie-ingreso: #3987e5;
     --serie-gasto: #d95926;
+    --serie-3: #199e70;
     --ingreso-texto: #86b6ef;
     --bien-texto: #5cc85c;
     --bien-suave: #15301a;
@@ -99,6 +101,7 @@
   --primario-texto: #121211;
   --serie-ingreso: #3987e5;
   --serie-gasto: #d95926;
+  --serie-3: #199e70;
   --ingreso-texto: #86b6ef;
   --bien-texto: #5cc85c;
   --bien-suave: #15301a;
@@ -654,9 +657,53 @@ tr:hover .acciones .boton-icono { opacity: 1; }
 /* Navegación por grupos */
 .navegacion { gap: 18px; overflow-y: auto; }
 .grupo-nav { display: flex; flex-direction: column; gap: 2px; }
-.grupo-nav--admin { padding: 8px; margin: 0 -8px; border-radius: var(--radio-md); background: var(--acento-suave); }
-.grupo-nav--admin .navegacion-titulo { color: var(--acento); }
-.grupo-nav--admin a.activo { background: var(--superficie); }
+.contador-nav {
+  margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px;
+  background: #e0a200; color: #fff; font-size: 11px; font-weight: 700; text-align: center;
+}
+
+/* Consola de administración: otra identidad visual (barra lateral azul marino) */
+.modo-admin .barra-lateral, .modo-admin .cabecera-movil {
+  --superficie: #0f1b2d;
+  --superficie-2: rgb(255 255 255 / 0.08);
+  --borde: rgb(255 255 255 / 0.1);
+  --texto: #f1f5f9;
+  --texto-2: #b9c4d2;
+  --texto-3: #7f8da0;
+  --acento: #7ab3f3;
+  --acento-suave: rgb(122 179 243 / 0.18);
+  background: #0f1b2d;
+  border-color: transparent;
+  color: var(--texto);
+}
+.modo-admin .marca-texto strong::after, .modo-admin .cabecera-movil .marca strong::after {
+  content: "ADMIN"; margin-left: 8px; padding: 2px 6px; border-radius: 5px; vertical-align: 2px;
+  background: #e0a200; color: #0f1b2d; font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+}
+.modo-admin .marca-logo { background: linear-gradient(140deg, #f5b301 0%, #e0a200 100%); color: #0f1b2d; box-shadow: none; }
+
+/* Resumen del administrador */
+.alerta--enlace { text-decoration: none; transition: filter 0.15s; }
+.alerta--enlace:hover { filter: brightness(0.97); }
+.lista-cuentas { list-style: none; margin: 0; padding: 0; }
+.lista-cuentas .reciente { gap: 10px; }
+.lista-cuentas .insignia-rol { flex-shrink: 0; }
+.distribucion { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.distribucion li { display: grid; grid-template-columns: minmax(130px, auto) minmax(0, 1fr) 28px; align-items: center; gap: 12px; }
+.distribucion-etiqueta { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--texto-2); white-space: nowrap; }
+.distribucion-etiqueta .icono { width: 15px; height: 15px; color: var(--texto-3); }
+.distribucion b { text-align: right; font-variant-numeric: tabular-nums; }
+.distribucion .medidor { height: 10px; }
+
+/* Bandeja de solicitudes */
+.bandeja { display: flex; flex-direction: column; gap: 12px; }
+.solicitud { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-left: 4px solid #e0a200; }
+.solicitud .avatar { width: 44px; height: 44px; font-size: 15px; }
+.solicitud-datos { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.solicitud-datos > span { color: var(--texto-3); font-size: 13px; }
+.solicitud-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.solicitud-precio { display: flex; flex-direction: column; align-items: flex-end; font-size: 12.5px; color: var(--texto-3); }
+.solicitud-precio b { color: var(--texto); font-size: 15px; }
 .insignia-pro {
   display: inline-block; padding: 1px 6px; border-radius: 5px; vertical-align: 1px;
   background: linear-gradient(135deg, #f5b301, #eb6834); color: #fff;
@@ -1015,7 +1062,6 @@ tr:hover .acciones .boton-icono { opacity: 1; }
   .navegacion::-webkit-scrollbar { display: none; }
   .grupo-nav { flex-direction: row; gap: 0; }
   .grupo-nav[hidden] { display: none !important; }
-  .grupo-nav--admin { padding: 0; margin: 0; background: none; }
   .navegacion a { min-width: 74px; }
   .rejilla-dos, .planes { grid-template-columns: minmax(0, 1fr); }
   .kpis--3 { grid-template-columns: minmax(0, 1fr); }

@@ -44,9 +44,12 @@
       <!-- Cada enlace declara qué necesita: data-permiso, data-funcion o data-admin.
            app.js oculta los que el usuario no puede usar (la API igual lo verifica). -->
       <nav class="navegacion" aria-label="Secciones">
-        <div class="grupo-nav grupo-nav--admin">
-          <span class="navegacion-titulo">Administración</span>
-          <a href="#/administracion" data-vista="administracion" data-icono="escudo" data-admin><span>Panel de administración</span></a>
+        <!-- Consola de administración: solo para administradores de la plataforma -->
+        <div class="grupo-nav">
+          <span class="navegacion-titulo">Consola</span>
+          <a href="#/resumen-admin" data-vista="resumen-admin" data-icono="panel" data-admin><span>Resumen</span></a>
+          <a href="#/administracion" data-vista="administracion" data-icono="usuarios" data-admin><span>Usuarios</span></a>
+          <a href="#/solicitudes" data-vista="solicitudes" data-icono="estrella" data-admin><span>Solicitudes Pro</span><b class="contador-nav" id="contador-solicitudes" hidden></b></a>
         </div>
         <div class="grupo-nav">
           <span class="navegacion-titulo">General</span>
@@ -68,7 +71,7 @@
         </div>
         <div class="grupo-nav">
           <span class="navegacion-titulo">Cuenta</span>
-          <a href="#/cuenta" data-vista="cuenta" data-icono="ajustes"><span>Mi cuenta y plan</span></a>
+          <a href="#/cuenta" data-vista="cuenta" data-icono="ajustes"><span id="nav-cuenta">Mi cuenta y plan</span></a>
         </div>
       </nav>
 

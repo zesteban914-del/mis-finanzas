@@ -83,6 +83,18 @@ class CambioUsuarioAdmin(BaseModel):
     activo: Optional[bool] = None
     rol: Optional[RolUsuario] = None
     plan: Optional[Plan] = None
+    descartar_solicitud: Optional[bool] = Field(
+        default=None, description="true = rechaza la solicitud de Pro sin cambiar el plan"
+    )
+
+
+class ActividadMes(BaseModel):
+    """Cuentas nuevas y cantidad de movimientos de un mes (sin montos)."""
+
+    mes: str
+    cuentas_personales: int
+    cuentas_negocio: int
+    movimientos: int
 
 
 class EstadisticasAdmin(BaseModel):
@@ -95,6 +107,7 @@ class EstadisticasAdmin(BaseModel):
     cuentas_pro: int
     solicitudes_pro: int
     ingreso_mensual_estimado: int
+    actividad_por_mes: List[ActividadMes] = []
 
 
 class PlanInfo(BaseModel):

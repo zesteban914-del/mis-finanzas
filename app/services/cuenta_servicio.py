@@ -4,7 +4,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from app.models import Plan, RolNegocio, TipoCuenta, Usuario
+from app.models import Plan, RolNegocio, RolUsuario, TipoCuenta, Usuario
 from app.models.usuario import ahora
 from app.planes import PRECIOS, beneficios
 from app.repositories import RepositorioMovimientos, RepositorioUsuarios
@@ -39,6 +39,8 @@ class ServicioPlanes:
 
     def solicitar_pro(self) -> Usuario:
         """Sin pasarela de pago aún: queda la solicitud y un administrador la activa."""
+        if self.usuario.rol == RolUsuario.ADMIN:
+            raise SinPermiso("Las cuentas de administrador no usan planes")
         if self.usuario.negocio_id:
             raise SinPermiso("Solo el propietario del negocio puede cambiar el plan")
         if self.usuario.plan == Plan.PRO:

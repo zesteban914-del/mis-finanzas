@@ -3,37 +3,47 @@
 import { api } from "../api.js";
 import { avisarCambio } from "../estado.js";
 import { icono } from "../iconos.js";
-import { cabecera, estadoVacio, insigniaPro, kpi } from "../componentes.js";
-import { escapar, formatoFecha, formatoMoneda } from "../formato.js";
+import { cabecera, estadoVacio, insigniaPro } from "../componentes.js";
+import { escapar, formatoFecha } from "../formato.js";
 import { usuarioActual } from "../sesion.js";
 import { abrirDialogo, notificar } from "../ui.js";
 
+const FILTROS = {
+  todas: ["Todas", () => true],
+  personales: ["Personales", (u) => !u.negocio_id && u.rol !== "ADMIN" && u.tipo_cuenta === "PERSONAL"],
+  negocios: ["Negocios", (u) => !u.negocio_id && u.tipo_cuenta === "NEGOCIO"],
+  equipos: ["Miembros de equipos", (u) => Boolean(u.negocio_id)],
+  pro: ["Plan Pro", (u) => u.plan === "PRO" && !u.negocio_id],
+  admins: ["Administradores", (u) => u.rol === "ADMIN"],
+  inactivas: ["Desactivadas", (u) => !u.activo],
+};
+
 let busqueda = "";
-let soloSolicitudes = false;
+let filtro = "todas";
 
 export async function renderizar(contenedor) {
-  const [usuarios, e] = await Promise.all([api.admin.usuarios(), api.admin.estadisticas()]);
+  const usuarios = await api.admin.usuarios();
   const yo = usuarioActual();
 
   contenedor.innerHTML = `
     ${cabecera({
-      titulo: "Panel de administración",
-      subtitulo: "Gestiona las cuentas de la plataforma. Por privacidad, aquí no se ven los datos financieros de nadie.",
+      titulo: "Usuarios",
+      subtitulo: `${usuarios.length} cuentas en la plataforma. Por privacidad, aquí no se ven los datos financieros de nadie.`,
     })}
-
-    <section class="kpis" aria-label="Estadísticas">
-      ${kpi({ etiqueta: "Ingreso mensual estimado", valor: formatoMoneda(e.ingreso_mensual_estimado), icono: "tendencia", destacado: true, pie: `${e.cuentas_pro} ${e.cuentas_pro === 1 ? "cuenta" : "cuentas"} en plan Pro` })}
-      ${kpi({ etiqueta: "Cuentas", valor: e.cuentas_personales + e.cuentas_negocio, icono: "usuarios", pie: `${e.cuentas_personales} personales · ${e.cuentas_negocio} de negocio` })}
-      ${kpi({ etiqueta: "Solicitudes de Pro", valor: e.solicitudes_pro, icono: "estrella", pie: e.solicitudes_pro ? "Pendientes por activar" : "Ninguna pendiente" })}
-      ${kpi({ etiqueta: "Movimientos registrados", valor: e.movimientos_registrados.toLocaleString("es-CO"), icono: "movimientos", pie: `${e.usuarios_activos} de ${e.total_usuarios} usuarios activos` })}
-    </section>
 
     <section class="tarjeta tarjeta--tabla">
       <div class="barra-busqueda">
         <span class="entrada-icono">${icono("buscar")}
           <input class="entrada" type="search" placeholder="Buscar por nombre o correo" value="${escapar(busqueda)}" aria-label="Buscar usuarios">
         </span>
-        <label class="casilla"><input type="checkbox" data-solo-solicitudes ${soloSolicitudes ? "checked" : ""}><span>Solo solicitudes de Pro</span></label>
+      </div>
+      <div class="pestanas" role="tablist">
+        ${Object.entries(FILTROS)
+          .map(([clave, [texto, condicion]]) => {
+            const cantidad = usuarios.filter(condicion).length;
+            return `<button type="button" role="tab" aria-selected="${filtro === clave}" class="${filtro === clave ? "activa" : ""}" data-filtro="${clave}">${texto} <span class="texto-tenue">${cantidad}</span></button>`;
+          })
+          .join("")}
       </div>
       <div id="lista-usuarios"></div>
     </section>`;
@@ -44,7 +54,7 @@ export async function renderizar(contenedor) {
     const visibles = usuarios.filter(
       (u) =>
         (!termino || u.nombre.toLowerCase().includes(termino) || u.email.includes(termino)) &&
-        (!soloSolicitudes || (u.solicito_pro_en && u.plan === "GRATIS"))
+        FILTROS[filtro][1](u)
     );
     lista.innerHTML = visibles.length
       ? tablaUsuarios(visibles, yo.id)
@@ -58,10 +68,12 @@ export async function renderizar(contenedor) {
     busqueda = evento.target.value;
     pintar();
   });
-  contenedor.querySelector("[data-solo-solicitudes]").addEventListener("change", (evento) => {
-    soloSolicitudes = evento.target.checked;
-    pintar();
-  });
+  contenedor.querySelectorAll("[data-filtro]").forEach((boton) =>
+    boton.addEventListener("click", () => {
+      filtro = boton.dataset.filtro;
+      renderizar(contenedor);
+    })
+  );
   pintar();
 }
 
@@ -136,7 +148,7 @@ function gestionar(usuario) {
           : ""
       }
       ${interruptor("pro", "Plan Pro", esMiembro ? "Usa el plan de su negocio" : "Desbloquea Excel, comprobantes y límites más altos", usuario.plan === "PRO", esMiembro)}
-      ${interruptor("admin", "Administrador de la plataforma", "Puede ver y gestionar todas las cuentas (no sus finanzas)", usuario.rol === "ADMIN")}
+      ${interruptor("admin", "Administrador de la plataforma", "Usa la consola de administración. Mientras lo sea, la cuenta no usa funciones financieras (sus datos se conservan)", usuario.rol === "ADMIN")}
       ${interruptor("activo", "Cuenta activa", "Si la desactivas, no podrá iniciar sesión (sus datos se conservan)", usuario.activo)}`,
     alEnviar: async (datos) => {
       const cambios = {

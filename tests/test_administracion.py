@@ -46,7 +46,7 @@ def test_admin_ve_estadisticas(cliente_anonimo):
     assert datos["usuarios_activos"] == 2
     assert datos["administradores"] == 1
     assert datos["movimientos_registrados"] == 1
-    assert datos["cuentas_personales"] == 2
+    assert datos["cuentas_personales"] == 1  # el administrador no cuenta como cliente
     assert datos["cuentas_pro"] == 0
 
 
