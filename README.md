@@ -53,10 +53,16 @@ Los errores de tipo (p. ej. enviar texto en `monto`) los responde FastAPI con 42
 
 ## Instalación
 
-1. Crear la base de datos en PostgreSQL:
-   ```sql
-   CREATE DATABASE control_gastos;
+1. Encender PostgreSQL. La forma recomendada es con Docker Desktop abierto:
+   ```powershell
+   docker compose up -d
    ```
+   Esto crea un contenedor `control_gastos_db` con la base `control_gastos`
+   (usuario y contraseña `postgres`) en el puerto **5434**, para no chocar con
+   otro PostgreSQL que ya use el 5432. Para apagarlo: `docker compose down`.
+
+   Si prefieres un PostgreSQL instalado en Windows, crea la base con
+   `CREATE DATABASE control_gastos;` y ajusta `DATABASE_URL` (paso 3).
 2. Crear el entorno virtual e instalar dependencias (PowerShell en Windows):
    ```powershell
    py -3.12 -m venv .venv
@@ -68,8 +74,10 @@ Los errores de tipo (p. ej. enviar texto en `monto`) los responde FastAPI con 42
    `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 3. Configurar la conexión (opcional; este es el valor por defecto):
    ```powershell
-   $env:DATABASE_URL = "postgresql+psycopg2://postgres:postgres@localhost:5432/control_gastos"
+   $env:DATABASE_URL = "postgresql+psycopg2://postgres:postgres@localhost:5434/control_gastos"
    ```
+   Si la app no logra conectarse, al arrancar muestra el motivo (servidor
+   apagado, contraseña incorrecta, etc.) y se detiene.
 
 ## Ejecutar la aplicación
 

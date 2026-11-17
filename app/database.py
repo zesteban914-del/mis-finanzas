@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 URL_BASE_DE_DATOS = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg2://postgres:postgres@localhost:5432/control_gastos",
+    "postgresql+psycopg2://postgres:postgres@localhost:5434/control_gastos",
 )
 
 
