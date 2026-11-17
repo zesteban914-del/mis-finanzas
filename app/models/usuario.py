@@ -104,6 +104,12 @@ class Usuario(Base):
         return sorted(p.value for p in permisos_de(self))
 
     @property
+    def limites(self) -> dict:
+        from app.planes import LIMITES
+
+        return LIMITES[self.plan_efectivo]
+
+    @property
     def funciones(self) -> list:
         from app.permisos import funciones_de
 

@@ -57,6 +57,7 @@ class UsuarioRespuesta(BaseModel):
     nombre_negocio: Optional[str] = None
     permisos: List[str] = []
     funciones: List[str] = []
+    limites: dict = {}
 
 
 class SesionRespuesta(BaseModel):

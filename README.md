@@ -1,256 +1,252 @@
 # Mis Finanzas · Control de Gastos
 
-Aplicación web multiusuario para registrar ingresos y gastos, administrar
-categorías, consultar el saldo, ver un resumen mensual por categoría y
-controlar un presupuesto mensual. Cada persona o negocio tiene su propia
-cuenta y solo ve sus datos; un administrador gestiona las cuentas.
+Aplicación web de finanzas para **personas y negocios**. Al registrarse cada
+usuario elige el tipo de cuenta: según eso se le piden distintos datos y se
+activan distintas funciones. Los negocios pueden invitar a su equipo con
+permisos limitados, y hay un modelo de suscripción **Gratis / Pro**.
 Proyecto académico de Construcción de Software.
 
-**Stack:** Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, pytest, JWT.
+**Stack:** Python 3.11+, FastAPI, SQLAlchemy, Alembic, PostgreSQL, pytest, JWT, openpyxl.
 Interfaz en HTML, CSS y JavaScript sin librerías ni pasos de compilación.
+
+## Tipos de cuenta y funciones
+
+| Función | Personal | Negocio |
+|---|:---:|:---:|
+| Movimientos, categorías, panel con gráficos | ✓ | ✓ |
+| Presupuesto mensual y **por categoría**, con alertas | ✓ | ✓ |
+| **Movimientos recurrentes** (se registran solos cada mes) | ✓ | ✓ |
+| **Exportar** a CSV, Excel (Pro) o PDF (imprimir) | ✓ | ✓ |
+| Deudas y préstamos / **cuentas por cobrar y pagar** | ✓ | ✓ |
+| **Metas de ahorro** con sugerencia de ahorro mensual | ✓ | — |
+| **Cajas** (efectivo, banco, Nequi) y transferencias | — | ✓ |
+| **Equipo**: empleado y contador | — | ✓ |
+| **Comprobantes** adjuntos (foto o PDF) | — | ✓ (Pro) |
+
+Al registrarse:
+- **Personal:** nombre y objetivo principal (ahorrar, salir de deudas…).
+- **Negocio:** nombre del negocio, sector, NIT y persona responsable.
+- En ambos casos se aceptan los términos y la política de tratamiento de
+  datos (Ley 1581 de 2012) y se pueden crear categorías sugeridas según el tipo.
+
+## Roles y permisos
+
+Hay dos ejes independientes, definidos en [`app/permisos.py`](app/permisos.py)
+(la única fuente de verdad: el backend los hace cumplir y la interfaz los
+recibe en `/auth/yo` para mostrar u ocultar opciones):
+
+| Rol dentro del negocio | Ver movimientos | Registrar | Ver reportes | Exportar | Editar / configurar | Gestionar equipo |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Propietario (o cuenta personal) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (negocio) |
+| Empleado | ✓ | ✓ | — | — | — | — |
+| Contador | ✓ | — | ✓ | ✓ | — | — |
+
+El **administrador de la plataforma** es otro rol: gestiona cuentas (activar,
+desactivar, cambiar plan o rol) y ve métricas del negocio (cuentas, ingreso
+mensual estimado), pero **nunca** los montos ni los movimientos de nadie.
+
+## Planes
+
+Definidos en [`app/planes.py`](app/planes.py). Los límites son reglas de
+negocio de la capa de servicios; al superarlos la API responde **HTTP 402**.
+
+| | Gratis | Pro |
+|---|---|---|
+| Precio (referencia) | $0 | $9.900/mes personal · $39.900/mes negocio |
+| Recurrentes | 3 | 50 |
+| Metas de ahorro | 2 | 20 |
+| Cajas | 2 | 20 |
+| Miembros del equipo | 1 | 10 |
+| Exportar | CSV | CSV y Excel |
+| Comprobantes | — | ✓ |
+
+Todavía no hay pasarela de pago: el usuario **solicita** el plan Pro y un
+administrador lo activa desde la sección Usuarios.
 
 ## Arquitectura por capas
 
 ```
 app/
 ├── main.py           # Crea la app, registra routers, traduce errores a HTTP y sirve la interfaz
-├── config.py         # Configuración por variables de entorno (clave secreta, expiración...)
+├── config.py         # Configuración por variables de entorno
+├── permisos.py       # Qué puede hacer cada rol y qué funciones tiene cada tipo de cuenta
+├── planes.py         # Límites y precios de los planes
+├── catalogos.py      # Objetivos, sectores y categorías sugeridas
 ├── seguridad.py      # Cifrado de contraseñas (PBKDF2) y tokens de sesión (JWT)
+├── migraciones.py    # Aplica las migraciones de Alembic al arrancar
 ├── database.py       # Conexión a la BD y sesión por petición
-├── models/           # Entidades: Usuario, Categoria, Movimiento, Presupuesto
+├── models/           # Entidades: Usuario, Categoria, Movimiento, Presupuesto,
+│                     #   PresupuestoCategoria, Recurrente, Meta, Deuda, Caja,
+│                     #   Transferencia, Comprobante
 ├── schemas/          # Validación de entrada y forma de salida (Pydantic)
-├── repositories/     # Acceso a datos (patrón Repository), siempre filtrado por usuario
-├── services/         # Reglas de negocio y cálculos (no conocen HTTP)
-├── controllers/      # Endpoints; dependencias.py identifica al usuario por su token
+├── repositories/     # Acceso a datos; base.py filtra SIEMPRE por el dueño de los datos
+├── services/         # Reglas de negocio (no conocen HTTP); autorizacion.py aplica permisos y planes
+├── controllers/      # Endpoints; dependencias.py identifica al usuario y arma cada servicio
 └── static/           # Interfaz web (capa de presentación)
-    ├── index.html
-    ├── css/estilos.css      # Diseño: colores claro/oscuro, componentes, responsive
-    └── js/
-        ├── app.js           # Sesión, navegación entre vistas, tema y atajos
-        ├── api.js           # Único módulo que llama a la API (agrega el token)
-        ├── sesion.js        # Guarda el token y los datos del usuario
-        ├── formato.js       # Dinero (COP) y fechas en español
-        ├── componentes.js   # Piezas de HTML reutilizables (KPIs, medidor, etc.)
-        ├── graficos.js      # Gráficos de barras y columnas hechos con CSS
-        ├── ui.js            # Notificaciones, diálogo modal y tooltip
-        └── vistas/          # Ingreso/registro, Panel, Movimientos, Categorías,
-                             # Presupuestos, Usuarios (admin) y formularios
+    ├── css/estilos.css
+    └── js/           # app.js (navegación por permisos), api.js, sesion.js, vistas/...
+migraciones/          # Migraciones de Alembic (historial de cambios de la base)
 tests/                # Pruebas unitarias y de integración con pytest
 seed.py               # Cuentas y datos de demostración
 docker-compose.yml    # PostgreSQL del proyecto
 ```
 
 Flujo de una petición: **interfaz → controlador → servicio → repositorio → base de datos**.
-Cada capa solo conoce a la de abajo. La interfaz no tiene reglas de negocio:
-envía los datos a la API y muestra sus mensajes de error tal como llegan
-(por ejemplo "El monto debe ser mayor que 0").
 
-## Usuarios, roles y seguridad
-
-| Rol | Qué puede hacer |
-|-----|-----------------|
-| **Usuario** | Registrarse, iniciar sesión y gestionar **solo sus propias** categorías, movimientos y presupuestos. |
-| **Administrador** | Lo mismo que un usuario con sus propios datos, más la sección **Usuarios**: ver las cuentas, cuántos movimientos tiene cada una, activar o desactivar cuentas y dar o quitar el rol de administrador. |
-
-- **Privacidad:** el administrador **no** puede ver montos, descripciones ni
-  movimientos de otras personas; solo datos de la cuenta y cantidades.
-- **Aislamiento:** cada categoría, movimiento y presupuesto tiene un
-  `usuario_id`. Los repositorios se crean para un usuario y todas sus consultas
-  filtran por él. Si alguien pide un registro ajeno recibe 404, como si no
-  existiera (así no se revela que existe).
-- **Contraseñas:** nunca se guardan; se guarda un hash PBKDF2-SHA256 con sal
-  aleatoria y 600.000 iteraciones (recomendación OWASP). Deben tener mínimo 8
-  caracteres con letras y números.
-- **Sesión:** al iniciar sesión la API entrega un token JWT firmado que vence en
-  8 horas. La interfaz lo envía en cada petición (`Authorization: Bearer ...`).
-  En cada petición se verifica que la cuenta siga activa: si el administrador
-  la desactiva, el acceso se corta de inmediato.
-- **Inicio de sesión:** el mensaje de error es el mismo si el correo no existe
-  o si la contraseña es incorrecta, y el tiempo de respuesta también, para no
-  revelar qué correos están registrados.
-- **Protecciones de la cuenta admin:** un administrador no puede desactivarse
-  ni quitarse el rol a sí mismo (evita quedarse sin administradores).
-
-### Cuentas de demostración
-
-`python seed.py` crea estas cuentas. Son **solo para la demostración**; cambia
-o elimina estas contraseñas antes de usar la app con personas reales.
-
-| Cuenta | Correo | Contraseña | Contenido |
-|--------|--------|------------|-----------|
-| Administrador | `admin@misfinanzas.test` | `Admin12345` | Acceso a la sección Usuarios |
-| Usuario demo | `demo@misfinanzas.test` | `Demo12345` | 6 meses de movimientos y 3 presupuestos |
-| Negocio | `espiga@misfinanzas.test` | `Espiga12345` | Una panadería con pocos movimientos |
-| Inactiva | `inactiva@misfinanzas.test` | `Inactiva12345` | Cuenta desactivada (no puede entrar) |
-
-## Interfaz web
-
-Al abrir <http://localhost:8000> aparece la pantalla para **iniciar sesión** o
-**crear una cuenta** (con la opción de empezar con categorías sugeridas).
-Dentro de la aplicación:
-
-- **Panel:** saldo actual, ingresos, gastos y balance del mes (con la variación
-  frente al mes anterior), estado del presupuesto, gastos por categoría,
-  ingresos vs. gastos de los últimos 6 meses y movimientos recientes. Con las
-  flechas se cambia de mes.
-- **Movimientos:** tabla con filtros por rango de fechas, categoría y tipo;
-  crear, editar y eliminar.
-- **Categorías:** crear, renombrar y eliminar (si tiene movimientos, la API lo
-  impide y la interfaz muestra el motivo).
-- **Presupuestos:** un límite por mes con su barra de uso y estado.
-- **Usuarios** (solo administradores): estadísticas generales, búsqueda y
-  gestión de cuentas.
-
-Detalles de diseño: modo claro y oscuro, versión para celular, colores fijos
-(azul = ingresos, naranja = gastos), estados del presupuesto con icono y texto
-(no solo color), cada gráfico tiene también vista de tabla, y la tecla **N**
-abre el formulario de nuevo movimiento.
+- **Aislamiento de datos:** cada registro tiene un `usuario_id` (su dueño).
+  Los repositorios heredan de `RepositorioDelTitular`, que filtra todas las
+  consultas por el dueño. Los miembros de un equipo trabajan sobre los datos
+  del negocio (`titular_id`). Pedir un registro ajeno responde 404.
+- **Inyección de dependencias:** cada endpoint declara el servicio y el
+  permiso que necesita, por ejemplo
+  `Depends(servicio(ServicioCajas, Permiso.GESTIONAR, Funcion.CAJAS))`;
+  FastAPI verifica sesión, permiso y función antes de ejecutarlo.
+- **La interfaz no tiene reglas de negocio:** envía los datos a la API y
+  muestra sus mensajes de error tal como llegan.
 
 ### Principios SOLID aplicados
-- **S (Responsabilidad única):** cada capa y cada clase tiene una sola tarea
-  (p. ej. `RepositorioMovimientos` solo consulta, `ServicioMovimientos` solo
-  aplica reglas, `seguridad.py` solo cifra y firma).
-- **O (Abierto/cerrado):** se agregan recursos nuevos con nuevos routers,
-  servicios y repositorios sin modificar los existentes (así se agregaron
-  autenticación y administración).
-- **L (Sustitución de Liskov):** todas las excepciones de negocio heredan de
-  `ErrorDeAplicacion` y pueden usarse donde se espera la clase base.
-- **I (Segregación de interfaces):** cada repositorio expone solo los métodos
-  que su entidad necesita.
-- **D (Inversión de dependencias):** los servicios no dependen de FastAPI. La
-  sesión de BD, el usuario actual y cada servicio se inyectan con `Depends`
-  (ver `controllers/dependencias.py`), lo que permite usar SQLite en memoria
-  en las pruebas.
+- **S:** cada capa y clase tiene una tarea (`seguridad.py` solo cifra y firma,
+  `autorizacion.py` solo decide si se permite algo, cada servicio una entidad).
+- **O:** las funciones nuevas (cajas, metas, equipo…) se agregaron con
+  nuevos modelos, repositorios, servicios y routers, sin cambiar las reglas
+  existentes; los permisos se amplían editando una tabla, no los endpoints.
+- **L:** todos los repositorios de datos heredan de `RepositorioDelTitular` y
+  pueden usarse donde se espera la base; todas las excepciones heredan de
+  `ErrorDeAplicacion`.
+- **I:** cada repositorio expone solo los métodos que su entidad necesita.
+- **D:** los servicios reciben la sesión y el usuario por inyección; no
+  dependen de FastAPI, por eso se prueban también sin HTTP.
 
 ### Manejo de errores
-Los servicios lanzan excepciones de negocio y `main.py` las convierte en
-respuestas JSON `{"detalle": "..."}`:
 
 | Excepción             | HTTP | Ejemplo                                   |
 |-----------------------|------|-------------------------------------------|
-| `ErrorDeValidacion`   | 400  | Monto ≤ 0, fecha futura, contraseña débil |
+| `ErrorDeValidacion`   | 400  | Monto ≤ 0, fecha futura, abono mayor que la deuda |
 | `NoAutenticado`       | 401  | Sin sesión, token vencido, clave incorrecta |
-| `SinPermiso`          | 403  | Usuario normal entrando a administración, cuenta desactivada |
-| `RecursoNoEncontrado` | 404  | Categoría o movimiento inexistente (o de otro usuario) |
-| `ConflictoDeDatos`    | 409  | Nombre o correo duplicado, categoría con movimientos |
+| `LimiteDelPlan`       | 402  | Cuarto recurrente o Excel en el plan Gratis |
+| `SinPermiso`          | 403  | Empleado intentando eliminar, cuenta personal entrando a Cajas |
+| `RecursoNoEncontrado` | 404  | Registro inexistente (o de otra cuenta)   |
+| `ConflictoDeDatos`    | 409  | Correo o nombre duplicado, categoría o caja en uso |
 
-Los errores de tipo (p. ej. enviar texto en `monto`) los responde FastAPI con 422.
+Los errores de tipo (p. ej. texto en `monto`) los responde FastAPI con 422.
+
+## Seguridad
+- Contraseñas con hash PBKDF2-SHA256, sal aleatoria y 600.000 iteraciones (OWASP).
+- Sesión con JWT firmado que vence en 8 horas; en cada petición se verifica
+  que la cuenta (y la del negocio, si es un miembro) siga activa.
+- El inicio de sesión responde igual (mensaje y tiempo) si el correo no existe
+  o si la clave es incorrecta.
+- Comprobantes: solo JPG, PNG, WEBP o PDF de hasta 2 MB.
+- Todo texto del usuario se escapa antes de mostrarse en la interfaz.
 
 ## Instalación
 
-1. Encender PostgreSQL. La forma recomendada es con Docker Desktop abierto:
+1. Encender PostgreSQL con Docker Desktop abierto:
    ```powershell
    docker compose up -d
    ```
-   Esto crea un contenedor `control_gastos_db` con la base `control_gastos`
-   (usuario y contraseña `postgres`) en el puerto **5434**, para no chocar con
-   otro PostgreSQL que ya use el 5432. Para apagarlo: `docker compose down`.
-
-   Si prefieres un PostgreSQL instalado en Windows, crea la base con
-   `CREATE DATABASE control_gastos;` y ajusta `DATABASE_URL` (paso 3).
-2. Crear el entorno virtual e instalar dependencias (PowerShell en Windows):
+   Crea el contenedor `control_gastos_db` (base `control_gastos`, usuario y
+   contraseña `postgres`) en el puerto **5434**.
+2. Crear el entorno virtual e instalar dependencias (PowerShell):
    ```powershell
    py -3.12 -m venv .venv
    .venv\Scripts\activate
    pip install -r requirements.txt
    ```
-   En Linux/Mac la activación es `source .venv/bin/activate`. Si PowerShell
-   responde que la ejecución de scripts está deshabilitada, ejecuta una vez
-   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
-3. Variables de entorno (todas opcionales en desarrollo):
+3. Variables de entorno (opcionales en desarrollo):
 
-   | Variable | Para qué sirve | Valor por defecto |
-   |----------|----------------|-------------------|
+   | Variable | Para qué sirve | Por defecto |
+   |----------|----------------|-------------|
    | `DATABASE_URL` | Conexión a PostgreSQL | `postgresql+psycopg2://postgres:postgres@localhost:5434/control_gastos` |
-   | `CLAVE_SECRETA` | Firma los tokens de sesión. **Obligatoria en producción**, larga y aleatoria | Una clave de desarrollo (la app avisa al arrancar) |
-   | `MINUTOS_EXPIRACION_TOKEN` | Duración de la sesión | `480` (8 horas) |
-
-   En PowerShell: `$env:CLAVE_SECRETA = "..."`. Para generar una clave segura:
-   `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
-
-   Si la app no logra conectarse a la base, al arrancar muestra el motivo
-   (servidor apagado, contraseña incorrecta, etc.) y se detiene.
+   | `CLAVE_SECRETA` | Firma las sesiones. **Obligatoria en producción** | Clave de desarrollo (la app avisa) |
+   | `MINUTOS_EXPIRACION_TOKEN` | Duración de la sesión | `480` |
 
 ## Ejecutar la aplicación
 
 ```bash
-python seed.py                  # crea las cuentas y datos de demostración (opcional)
+python seed.py                  # cuentas y datos de demostración (opcional)
 uvicorn app.main:app --reload
 ```
 
 - Interfaz web: <http://localhost:8000>
-- Documentación interactiva de la API: <http://localhost:8000/docs>. Para
-  probar endpoints protegidos, pulsa **Authorize** y escribe correo y
-  contraseña.
+- Documentación de la API: <http://localhost:8000/docs> (botón **Authorize**
+  con correo y contraseña para probar los endpoints protegidos).
+
+## Migraciones de la base de datos
+
+La estructura de la base se versiona con **Alembic** (`migraciones/versions/`).
+Al arrancar, la app aplica sola las migraciones pendientes **sin borrar
+datos**. Comandos útiles:
+
+```bash
+alembic upgrade head                    # aplicar migraciones pendientes
+alembic revision -m "descripcion"       # crear una migración nueva
+alembic history                         # ver el historial
+```
+
+Las pruebas usan SQLite en memoria y crean las tablas directamente.
+
+### Cuentas de demostración
+
+Las crea `python seed.py`. Son **solo para la demostración**.
+
+| Cuenta | Correo | Contraseña | Qué muestra |
+|--------|--------|------------|-------------|
+| Administrador | `admin@misfinanzas.test` | `Admin12345` | Sección Usuarios, métricas, solicitudes de Pro |
+| Personal (Gratis) | `demo@misfinanzas.test` | `Demo12345` | 6 meses de datos, metas (en el límite del plan), deudas, recurrentes, solicitud de Pro pendiente |
+| Negocio (Pro) | `espiga@misfinanzas.test` | `Espiga12345` | Panadería con cajas, transferencias, cuentas por cobrar/pagar, equipo |
+| Empleada | `laura@misfinanzas.test` | `Empleado12345` | Solo registra y ve movimientos de la panadería |
+| Contador | `contador@misfinanzas.test` | `Contador12345` | Ve y exporta todo, no puede editar |
+| Desactivada | `inactiva@misfinanzas.test` | `Inactiva12345` | No puede iniciar sesión |
 
 ## Correr las pruebas
-
-Las pruebas usan SQLite en memoria, así que **no necesitan PostgreSQL**.
 
 ```bash
 pytest --cov=app --cov-report=term-missing
 ```
 
-Cubren las reglas de negocio, la autenticación (registro, inicio de sesión,
-tokens inválidos), el aislamiento entre usuarios (nadie ve ni modifica datos
-ajenos) y la administración (permisos, privacidad y cuentas desactivadas).
+Cubren reglas de negocio, autenticación, aislamiento entre cuentas, tipos de
+cuenta, roles del equipo, límites de planes, recurrentes, presupuestos por
+categoría, exportación, metas, deudas, cajas, comprobantes y administración.
 
 ## Endpoints
 
-Todos, salvo los de `/auth/registro` y `/auth/login`, exigen el encabezado
-`Authorization: Bearer <token>`.
+Todos, salvo `/auth/registro`, `/auth/login` y `/auth/opciones-registro`,
+exigen `Authorization: Bearer <token>`. La lista completa con ejemplos está
+en `/docs`.
 
-| Método | Ruta                               | Descripción                                  |
-|--------|------------------------------------|----------------------------------------------|
-| POST   | `/auth/registro`                   | Crear cuenta (devuelve el token)             |
-| POST   | `/auth/login`                      | Iniciar sesión (formulario OAuth2: `username` = correo, `password`) |
-| GET    | `/auth/yo`                         | Datos de la cuenta actual                    |
-| POST   | `/categorias`                      | Crear categoría                              |
-| GET    | `/categorias`                      | Listar categorías                            |
-| GET    | `/categorias/{id}`                 | Obtener una categoría                        |
-| PUT    | `/categorias/{id}`                 | Editar categoría                             |
-| DELETE | `/categorias/{id}`                 | Eliminar categoría (si no tiene movimientos) |
-| POST   | `/movimientos`                     | Registrar ingreso o gasto (incluye alerta de presupuesto) |
-| GET    | `/movimientos`                     | Listar; filtros `fecha_inicio`, `fecha_fin`, `categoria_id` |
-| GET    | `/movimientos/{id}`                | Obtener un movimiento                        |
-| PUT    | `/movimientos/{id}`                | Editar movimiento (campos opcionales)        |
-| DELETE | `/movimientos/{id}`                | Eliminar movimiento                          |
-| POST   | `/presupuestos`                    | Definir presupuesto mensual                  |
-| GET    | `/presupuestos`                    | Listar presupuestos                          |
-| GET    | `/presupuestos/{mes}/estado`       | Gastado vs. límite y si se superó            |
-| PUT    | `/presupuestos/{id}`               | Editar presupuesto                           |
-| DELETE | `/presupuestos/{id}`               | Eliminar presupuesto                         |
-| GET    | `/reportes/saldo`                  | Saldo = ingresos − gastos                    |
-| GET    | `/reportes/resumen-mensual?mes=AAAA-MM` | Totales del mes por categoría           |
-| GET    | `/admin/usuarios`                  | *(admin)* Cuentas con su cantidad de movimientos |
-| GET    | `/admin/estadisticas`              | *(admin)* Totales de cuentas y movimientos   |
-| PATCH  | `/admin/usuarios/{id}`             | *(admin)* Activar/desactivar o cambiar rol   |
-
-### Ejemplo
-
-```bash
-# 1. Iniciar sesión y guardar el token
-curl -X POST http://localhost:8000/auth/login -d "username=demo@misfinanzas.test&password=Demo12345"
-
-# 2. Registrar un gasto con ese token
-curl -X POST http://localhost:8000/movimientos \
-  -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
-  -d '{"tipo":"GASTO","monto":50000,"fecha":"2026-11-10","descripcion":"Mercado","categoria_id":2}'
-```
+| Grupo | Rutas |
+|-------|-------|
+| Autenticación y cuenta | `POST /auth/registro`, `POST /auth/login`, `GET /auth/opciones-registro`, `GET·PATCH /auth/yo`, `PUT /auth/yo/contrasena` |
+| Planes | `GET /planes`, `POST /planes/solicitar-pro` |
+| Equipo (negocio) | `GET·POST /equipo`, `PATCH·DELETE /equipo/{id}` |
+| Categorías | `GET·POST /categorias`, `GET·PUT·DELETE /categorias/{id}` |
+| Movimientos | `GET·POST /movimientos` (filtros `fecha_inicio`, `fecha_fin`, `categoria_id`, `caja_id`), `GET·PUT·DELETE /movimientos/{id}` |
+| Comprobantes (negocio) | `POST·GET·DELETE /movimientos/{id}/comprobante` |
+| Presupuestos | `GET·POST /presupuestos`, `GET /presupuestos/{mes}/estado`, `PUT·DELETE /presupuestos/{id}` |
+| Presupuesto por categoría | `GET /presupuestos/categorias?mes=`, `PUT·DELETE /presupuestos/categorias/{categoria_id}` |
+| Recurrentes | `GET·POST /recurrentes`, `POST /recurrentes/generar`, `PATCH·DELETE /recurrentes/{id}` |
+| Reportes | `GET /reportes/saldo`, `GET /reportes/resumen-mensual?mes=`, `GET /reportes/exportar?mes=&formato=csv\|xlsx` |
+| Metas (personal) | `GET·POST /metas`, `POST /metas/{id}/aportes`, `PATCH·DELETE /metas/{id}` |
+| Deudas | `GET·POST /deudas` (filtro `tipo`), `POST /deudas/{id}/abonos`, `PATCH·DELETE /deudas/{id}` |
+| Cajas (negocio) | `GET·POST /cajas`, `PATCH·DELETE /cajas/{id}`, `GET·POST /cajas/transferencias` |
+| Administración | `GET /admin/usuarios`, `GET /admin/estadisticas`, `PATCH /admin/usuarios/{id}` |
 
 ## Reglas de negocio
-- El monto debe ser mayor que 0.
-- Todo movimiento debe tener una categoría existente **del mismo usuario**.
-- No se permiten fechas futuras.
-- No se puede eliminar una categoría con movimientos asociados.
-- Saldo = suma de ingresos − suma de gastos (de cada usuario).
-- Al registrar un gasto que hace superar el presupuesto del mes, la respuesta
-  incluye `alerta_presupuesto`.
-- El nombre de categoría y el mes del presupuesto son únicos **por usuario**.
-- El correo de cada cuenta es único.
+- El monto debe ser mayor que 0 y no se permiten fechas futuras.
+- Todo movimiento debe tener una categoría (y caja, si se indica) de la misma cuenta.
+- No se puede eliminar una categoría con movimientos o recurrentes, ni una caja con movimientos o transferencias.
+- Saldo = suma de ingresos − suma de gastos; saldo de una caja = saldo inicial + ingresos − gastos + transferencias recibidas − enviadas.
+- Una transferencia no puede superar el saldo de la caja de origen ni ir a la misma caja.
+- Un abono no puede superar el saldo pendiente de la deuda.
+- Los recurrentes se registran el día elegido (1 a 28) de cada mes, una sola vez por mes.
+- Al registrar un gasto que supera el presupuesto del mes o el límite de su categoría, la respuesta trae la alerta.
+- Los límites de cada plan se verifican al crear recurrentes, metas, cajas y miembros, al exportar a Excel y al adjuntar comprobantes.
 
 ## Antes de ponerla en producción
-Para venderla como servicio faltaría, como mínimo: definir `CLAVE_SECRETA`,
-servirla con HTTPS, usar migraciones de base de datos (por ejemplo Alembic) en
-lugar de `create_all`, limitar los intentos de inicio de sesión, permitir
-recuperar la contraseña por correo y hacer copias de seguridad de la base.
+- Definir `CLAVE_SECRETA` y servir la app con HTTPS.
+- Integrar una pasarela de pago (Wompi, PayU o Mercado Pago) para cobrar el plan Pro.
+- Enviar correos: recuperar contraseña, verificar correo y alertas de presupuesto.
+- Limitar los intentos de inicio de sesión y ofrecer verificación en dos pasos.
+- Revisar con un abogado los términos y la política de datos (el texto actual es una plantilla).
+- Copias de seguridad automáticas de la base de datos.

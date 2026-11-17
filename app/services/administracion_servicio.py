@@ -64,5 +64,6 @@ class ServicioAdministracion:
                 raise ErrorDeValidacion(
                     "Los miembros de un equipo usan el plan del negocio; cámbialo en la cuenta del propietario"
                 )
-            datos["solicito_pro_en"] = None  # la solicitud queda atendida
+            if datos["plan"] == Plan.PRO:
+                datos["solicito_pro_en"] = None  # la solicitud queda atendida
         return self.repositorio.actualizar(usuario, **datos)

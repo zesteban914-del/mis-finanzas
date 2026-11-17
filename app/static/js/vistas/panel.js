@@ -11,6 +11,8 @@ import {
   desplazarMes, escapar, formatoMoneda, mesActual, mesesHasta,
   nombreMes, nombreMesCorto, nombreMesSolo, rangoDelMes,
 } from "../formato.js";
+import { puede } from "../sesion.js";
+import { abrirExportacion, botonExportar } from "./exportar.js";
 import { abrirFormularioPresupuesto } from "./formulario-presupuesto.js";
 import { establecerFiltros } from "./movimientos.js";
 
@@ -54,7 +56,7 @@ export async function renderizar(contenedor) {
     ${cabecera({
       titulo: "Panel",
       subtitulo: `Así van tus finanzas en ${mesTexto}`,
-      acciones: `${selectorMes(mes)}${botonNuevoMovimiento()}`,
+      acciones: `${selectorMes(mes)}${botonExportar()}${botonNuevoMovimiento()}`,
     })}
 
     ${alertaPresupuesto(presupuesto, mesTexto)}
@@ -73,7 +75,7 @@ export async function renderizar(contenedor) {
             <h2 class="tarjeta-titulo">Presupuesto de ${mesTexto}</h2>
             <p class="tarjeta-subtitulo">Tus gastos del mes frente al límite</p>
           </div>
-          ${presupuesto ? `<button type="button" class="boton-icono" data-accion="editar-presupuesto" aria-label="Editar presupuesto" title="Editar presupuesto">${icono("lapiz")}</button>` : ""}
+          ${presupuesto && puede("GESTIONAR") ? `<button type="button" class="boton-icono" data-accion="editar-presupuesto" aria-label="Editar presupuesto" title="Editar presupuesto">${icono("lapiz")}</button>` : ""}
         </header>
         ${
           presupuesto
@@ -82,7 +84,9 @@ export async function renderizar(contenedor) {
                 icono: "objetivo",
                 titulo: "Sin presupuesto para este mes",
                 texto: "Define un límite de gasto y te avisaremos cuando lo superes.",
-                accion: `<button type="button" class="boton boton--secundario" data-accion="crear-presupuesto">${icono("mas")}Definir presupuesto</button>`,
+                accion: puede("GESTIONAR")
+                  ? `<button type="button" class="boton boton--secundario" data-accion="crear-presupuesto">${icono("mas")}Definir presupuesto</button>`
+                  : "",
               })
         }
       </section>
@@ -143,6 +147,7 @@ export async function renderizar(contenedor) {
     abrirFormularioPresupuesto(lista.find((p) => p.mes === mes));
   });
   contenedor.querySelector("[data-accion='ver-mes']")?.addEventListener("click", () => establecerFiltros({ fecha_inicio: inicio, fecha_fin: fin }));
+  contenedor.querySelector("[data-accion='exportar']")?.addEventListener("click", () => abrirExportacion(mes));
 }
 
 function selectorMes(mes) {

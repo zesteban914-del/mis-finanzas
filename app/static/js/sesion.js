@@ -16,6 +16,14 @@ let sesion = leerGuardada();
 export const obtenerToken = () => sesion?.token ?? null;
 export const usuarioActual = () => sesion?.usuario ?? null;
 export const esAdministrador = () => sesion?.usuario?.rol === "ADMIN";
+export const esNegocio = () => sesion?.usuario?.tipo_cuenta === "NEGOCIO";
+export const esPro = () => sesion?.usuario?.plan === "PRO";
+/** ¿El usuario puede hacer esta acción? (lista que envía el backend en /auth/yo) */
+export const puede = (permiso) => sesion?.usuario?.permisos?.includes(permiso) ?? false;
+/** Límite numérico del plan actual (recurrentes, metas, cajas, miembros). */
+export const limite = (recurso) => sesion?.usuario?.limites?.[recurso] ?? 0;
+/** ¿Su tipo de cuenta tiene este módulo? (METAS, CAJAS, EQUIPO, COMPROBANTES) */
+export const tieneFuncion = (funcion) => sesion?.usuario?.funciones?.includes(funcion) ?? false;
 
 export function guardarSesion(token, usuario) {
   sesion = { token, usuario };

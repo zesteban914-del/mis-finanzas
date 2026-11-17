@@ -1,51 +1,60 @@
-// Punto de entrada de la interfaz: sesión, navegación entre vistas, tema y atajos.
+// Punto de entrada de la interfaz: sesión, navegación según permisos, tema y atajos.
 import { api } from "./api.js";
 import { bus, estado } from "./estado.js";
-import { mesActual } from "./formato.js";
+import { escapar, mesActual } from "./formato.js";
 import { icono } from "./iconos.js";
 import { esqueleto, estadoError } from "./componentes.js";
-import { actualizarUsuario, cerrarSesion, esAdministrador, obtenerToken, usuarioActual } from "./sesion.js";
+import {
+  actualizarUsuario, cerrarSesion, esAdministrador, esNegocio, obtenerToken, puede, tieneFuncion, usuarioActual,
+} from "./sesion.js";
 import { iniciarDialogo, notificar, ocultarTooltip } from "./ui.js";
 import * as panel from "./vistas/panel.js";
 import * as movimientos from "./vistas/movimientos.js";
 import * as categorias from "./vistas/categorias.js";
 import * as presupuestos from "./vistas/presupuestos.js";
+import * as recurrentes from "./vistas/recurrentes.js";
+import * as metas from "./vistas/metas.js";
+import * as deudas from "./vistas/deudas.js";
+import * as cajas from "./vistas/cajas.js";
+import * as equipo from "./vistas/equipo.js";
+import * as cuenta from "./vistas/cuenta.js";
 import * as administracion from "./vistas/administracion.js";
 import { renderizarAutenticacion } from "./vistas/autenticacion.js";
 import { abrirFormularioMovimiento } from "./vistas/formulario-movimiento.js";
 
-const VISTAS = { panel, movimientos, categorias, presupuestos, administracion };
-const TITULOS = {
-  panel: "Panel",
-  movimientos: "Movimientos",
-  categorias: "Categorías",
-  presupuestos: "Presupuestos",
-  administracion: "Usuarios",
-};
+const VISTAS = { panel, movimientos, presupuestos, recurrentes, metas, categorias, cajas, deudas, equipo, cuenta, administracion };
 const RUTAS_PUBLICAS = ["ingresar", "registro"];
+const ORDEN_INICIO = ["panel", "movimientos", "cuenta"];
 
 const contenido = document.getElementById("contenido");
 const pantallaApp = document.querySelector(".app");
 const pantallaAutenticacion = document.getElementById("autenticacion");
+const enlaceDe = (vista) => document.querySelector(`.navegacion [data-vista="${vista}"]`);
 
 const rutaActual = () => location.hash.replace(/^#\/?/, "");
 
-function vistaActual() {
-  const nombre = rutaActual();
-  if (nombre === "administracion" && !esAdministrador()) return "panel";
-  return VISTAS[nombre] ? nombre : "panel";
+/** Cada enlace del menú declara lo que necesita (data-permiso, data-funcion, data-admin). */
+function vistaPermitida(nombre) {
+  const enlace = enlaceDe(nombre);
+  if (!VISTAS[nombre] || !enlace) return false;
+  const { permiso, funcion } = enlace.dataset;
+  if ("admin" in enlace.dataset && !esAdministrador()) return false;
+  if (permiso && !puede(permiso)) return false;
+  if (funcion && !tieneFuncion(funcion)) return false;
+  return true;
 }
+
+const vistaInicial = () => ORDEN_INICIO.find(vistaPermitida);
 
 /* Decide qué mostrar: pantalla de ingreso o la aplicación --------------------- */
 let avisoPendiente = "";
 
 function enrutar() {
+  const ruta = rutaActual();
   if (!obtenerToken()) {
     mostrarAutenticacion();
-  } else if (RUTAS_PUBLICAS.includes(rutaActual())) {
-    location.hash = "#/panel"; // con sesión iniciada no tiene sentido ver el login
-  } else if (rutaActual() === "administracion" && !esAdministrador()) {
-    location.hash = "#/panel"; // la API igual respondería 403
+  } else if (RUTAS_PUBLICAS.includes(ruta) || !vistaPermitida(ruta)) {
+    location.replace(`#/${vistaInicial()}`); // la API igual respondería 403
   } else {
     mostrarAplicacion();
   }
@@ -61,43 +70,82 @@ function mostrarAutenticacion() {
     alEntrar: (usuario, esNuevo) => {
       avisoPendiente = "";
       notificar(esNuevo ? `¡Bienvenido, ${usuario.nombre}! Tu cuenta está lista.` : `Hola de nuevo, ${usuario.nombre}`);
-      if (location.hash === "#/panel") enrutar();
-      else location.hash = "#/panel";
+      recurrentesGenerados = false;
+      const destino = `#/${vistaInicial()}`;
+      if (location.hash === destino) enrutar();
+      else location.hash = destino; // el evento hashchange llama a enrutar()
     },
   });
   avisoPendiente = "";
 }
 
-function mostrarAplicacion() {
+let recurrentesGenerados = false;
+
+async function mostrarAplicacion() {
   pantallaAutenticacion.hidden = true;
   pantallaAutenticacion.replaceChildren();
   pantallaApp.hidden = false;
   pintarUsuario();
+  if (!recurrentesGenerados) {
+    recurrentesGenerados = true;
+    await generarRecurrentes();
+  }
   mostrarVista();
 }
+
+/** Registra los pagos/ingresos recurrentes que vencieron desde la última visita. */
+async function generarRecurrentes() {
+  if (!puede("VER_MOVIMIENTOS")) return;
+  try {
+    const { movimientos_creados: creados } = await api.recurrentes.generar();
+    if (creados > 0) {
+      notificar(`Se registraron ${creados} ${creados === 1 ? "movimiento recurrente" : "movimientos recurrentes"} pendientes`);
+    }
+  } catch {
+    /* no es crítico: se intentará en la próxima visita */
+  }
+}
+
+const ROLES_NEGOCIO = { PROPIETARIO: "Propietario", EMPLEADO: "Empleado", CONTADOR: "Contador" };
 
 function pintarUsuario() {
   const usuario = usuarioActual();
   if (!usuario) return;
   const iniciales = usuario.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
   document.getElementById("usuario-avatar").textContent = iniciales;
-  document.getElementById("usuario-nombre").textContent = usuario.nombre;
-  document.getElementById("usuario-email").textContent = usuario.email;
-  document.querySelectorAll(".solo-admin").forEach((elemento) => (elemento.hidden = !esAdministrador()));
+  document.getElementById("usuario-nombre").innerHTML =
+    `${escapar(usuario.nombre)}${usuario.plan === "PRO" ? ' <span class="insignia-pro">PRO</span>' : ""}`;
+  document.getElementById("usuario-detalle").textContent = usuario.negocio_id
+    ? `${ROLES_NEGOCIO[usuario.rol_negocio]} · ${usuario.nombre_negocio}`
+    : usuario.email;
+  document.getElementById("marca-subtitulo").textContent = esNegocio()
+    ? usuario.nombre_negocio || "Cuenta de negocio"
+    : "Finanzas personales";
+  document.getElementById("nav-deudas").textContent = esNegocio() ? "Por cobrar y pagar" : "Deudas y préstamos";
+
+  // Menú: cada enlace se muestra solo si el usuario puede usarlo; los grupos vacíos se ocultan.
+  document.querySelectorAll(".navegacion [data-vista]").forEach((enlace) => {
+    enlace.hidden = !vistaPermitida(enlace.dataset.vista);
+  });
+  document.querySelectorAll(".grupo-nav").forEach((grupo) => {
+    grupo.hidden = !grupo.querySelector("[data-vista]:not([hidden])");
+  });
 }
 
 /* Vistas internas (#/panel, #/movimientos, ...) -------------------------------- */
 let ultimaCarga = 0;
 
 async function mostrarVista({ conEsqueleto = true } = {}) {
-  const nombre = vistaActual();
+  const nombre = rutaActual();
+  if (!vistaPermitida(nombre)) return;
   const carga = ++ultimaCarga;
   ocultarTooltip();
-  document.title = `${TITULOS[nombre]} · Mis Finanzas`;
-  document.querySelectorAll("[data-vista]").forEach((enlace) => {
-    const activo = enlace.dataset.vista === nombre;
-    enlace.classList.toggle("activo", activo);
-    activo ? enlace.setAttribute("aria-current", "page") : enlace.removeAttribute("aria-current");
+  const enlace = enlaceDe(nombre);
+  document.title = `${enlace.textContent.trim()} · Mis Finanzas`;
+  document.querySelectorAll(".navegacion [data-vista]").forEach((e) => {
+    const activo = e === enlace;
+    e.classList.toggle("activo", activo);
+    activo ? e.setAttribute("aria-current", "page") : e.removeAttribute("aria-current");
   });
 
   if (conEsqueleto) contenido.innerHTML = esqueleto();
@@ -118,12 +166,17 @@ window.addEventListener("hashchange", enrutar);
 bus.addEventListener("refrescar", () => {
   if (obtenerToken()) mostrarVista({ conEsqueleto: false });
 });
+bus.addEventListener("usuario-actualizado", () => {
+  pintarUsuario();
+  enrutar();
+});
 
 /* Cierre de sesión (por botón o porque el servidor la rechazó) ----------------- */
 bus.addEventListener("sesion-cerrada", (evento) => {
   avisoPendiente = evento.detail.motivo;
   estado.mes = mesActual();
   movimientos.establecerFiltros({});
+  recurrentesGenerados = false;
   document.getElementById("dialogo").close();
   if (location.hash === "#/ingresar") enrutar();
   else location.hash = "#/ingresar";
@@ -189,7 +242,7 @@ document.addEventListener("click", (evento) => {
 document.addEventListener("keydown", (evento) => {
   const escribiendo = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName);
   if (evento.key.toLowerCase() !== "n" || evento.ctrlKey || evento.metaKey || evento.altKey || escribiendo) return;
-  if (pantallaApp.hidden || document.getElementById("dialogo").open) return;
+  if (pantallaApp.hidden || document.getElementById("dialogo").open || !puede("REGISTRAR_MOVIMIENTOS")) return;
   evento.preventDefault();
   abrirFormularioMovimiento();
 });
@@ -200,14 +253,16 @@ document.querySelectorAll("[data-icono]").forEach((elemento) =>
 );
 pintarBotonesTema();
 iniciarDialogo();
-enrutar();
 
-// Refresca los datos de la cuenta (por si cambió el rol). Si el token ya no
-// sirve, api.js cierra la sesión y se muestra la pantalla de ingreso.
+// Con sesión guardada, primero se refrescan los datos de la cuenta (rol, plan,
+// permisos) para no mostrar un menú desactualizado. Si el token ya no sirve,
+// api.js cierra la sesión y se muestra la pantalla de ingreso.
 if (obtenerToken()) {
-  api.auth.miCuenta().then((usuario) => {
-    actualizarUsuario(usuario);
-    pintarUsuario();
-    if (rutaActual() === "administracion" && !esAdministrador()) location.hash = "#/panel";
-  }).catch(() => {});
+  api.auth
+    .miCuenta()
+    .then((usuario) => actualizarUsuario(usuario))
+    .catch(() => {})
+    .finally(enrutar);
+} else {
+  enrutar();
 }

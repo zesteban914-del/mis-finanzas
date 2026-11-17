@@ -2,8 +2,9 @@
 import { api } from "../api.js";
 import { avisarCambio } from "../estado.js";
 import { icono } from "../iconos.js";
-import { cabecera, estadoVacio } from "../componentes.js";
+import { botonesEdicion, cabecera, estadoVacio } from "../componentes.js";
 import { escapar, formatoMoneda, mesActual, nombreMesSolo } from "../formato.js";
+import { esNegocio, puede } from "../sesion.js";
 import { abrirDialogo, notificar } from "../ui.js";
 
 export async function renderizar(contenedor) {
@@ -23,13 +24,17 @@ export async function renderizar(contenedor) {
   contenedor.innerHTML = `
     ${cabecera({ titulo: "Categorías", subtitulo: "Organiza tus movimientos por tipo de ingreso o gasto" })}
 
-    <form class="tarjeta formulario-linea" aria-label="Nueva categoría">
-      <label class="campo">
-        <span class="sr-only">Nombre de la nueva categoría</span>
-        <input class="entrada" name="nombre" maxlength="50" placeholder="Nombre de la nueva categoría, por ejemplo «Mascotas»" autocomplete="off">
-      </label>
-      <button type="submit" class="boton boton--primario">${icono("mas")}Agregar categoría</button>
-    </form>
+    ${
+      puede("GESTIONAR")
+        ? `<form class="tarjeta formulario-linea" aria-label="Nueva categoría">
+             <label class="campo">
+               <span class="sr-only">Nombre de la nueva categoría</span>
+               <input class="entrada" name="nombre" maxlength="50" placeholder="Nombre de la nueva categoría, por ejemplo «${esNegocio() ? "Mantenimiento" : "Mascotas"}»" autocomplete="off">
+             </label>
+             <button type="submit" class="boton boton--primario">${icono("mas")}Agregar categoría</button>
+           </form>`
+        : ""
+    }
 
     ${
       categorias.length
@@ -40,7 +45,7 @@ export async function renderizar(contenedor) {
     }`;
 
   const formulario = contenedor.querySelector(".formulario-linea");
-  formulario.addEventListener("submit", async (evento) => {
+  formulario?.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     const nombre = new FormData(formulario).get("nombre").trim();
     if (!nombre) {
@@ -82,10 +87,7 @@ function tarjetaCategoria(categoria, cantidadMovimientos, totales = { ingresos: 
           <h3 title="${nombre}">${nombre}</h3>
           <p>${cantidadMovimientos} ${cantidadMovimientos === 1 ? "movimiento" : "movimientos"}</p>
         </div>
-        <div class="categoria-acciones">
-          <button type="button" class="boton-icono" data-editar="${categoria.id}" aria-label="Renombrar ${nombre}" title="Renombrar">${icono("lapiz")}</button>
-          <button type="button" class="boton-icono boton-icono--peligro" data-eliminar="${categoria.id}" aria-label="Eliminar ${nombre}" title="Eliminar">${icono("papelera")}</button>
-        </div>
+        ${botonesEdicion(categoria.id, categoria.nombre)}
       </div>
       <div class="categoria-pie">
         <span>${etiquetaPie}</span>

@@ -31,6 +31,7 @@ def test_registro_personal_tiene_metas_y_no_equipo(cliente_anonimo):
     assert usuario["funciones"] == ["METAS"]
     assert "GESTIONAR_EQUIPO" not in usuario["permisos"]
     assert usuario["plan"] == "GRATIS"
+    assert usuario["limites"]["recurrentes"] == 3 and usuario["limites"]["exportar_excel"] is False
 
 
 def test_exige_aceptar_los_terminos(cliente_anonimo):

@@ -2,23 +2,34 @@
 // Las reglas (monto > 0, sin fechas futuras, categoría existente) las valida el
 // backend; aquí solo se muestran sus mensajes de error.
 import { api } from "../api.js";
+import { insigniaPro } from "../componentes.js";
 import { avisarCambio } from "../estado.js";
 import { escapar, hoyIso } from "../formato.js";
 import { icono } from "../iconos.js";
+import { esPro, puede, tieneFuncion } from "../sesion.js";
 import { abrirDialogo, notificar } from "../ui.js";
 
 export async function abrirFormularioMovimiento(movimiento = null) {
-  const categorias = await api.categorias.listar();
+  const conCajas = tieneFuncion("CAJAS");
+  const [categorias, cajas] = await Promise.all([
+    api.categorias.listar(),
+    conCajas ? api.cajas.listar() : Promise.resolve([]),
+  ]);
   if (!categorias.length) {
-    notificar("Primero crea al menos una categoría para tus movimientos", "advertencia");
-    location.hash = "#/categorias";
+    notificar(
+      puede("GESTIONAR")
+        ? "Primero crea al menos una categoría para tus movimientos"
+        : "Aún no hay categorías: pide al propietario que las cree",
+      "advertencia"
+    );
+    if (puede("GESTIONAR")) location.hash = "#/categorias";
     return;
   }
 
   const tipo = movimiento?.tipo ?? "GASTO";
-  const opciones = categorias
-    .map((c) => `<option value="${c.id}" ${c.id === movimiento?.categoria_id ? "selected" : ""}>${escapar(c.nombre)}</option>`)
-    .join("");
+  const opciones = (lista, actual) =>
+    lista.map((x) => `<option value="${x.id}" ${x.id === actual ? "selected" : ""}>${escapar(x.nombre)}</option>`).join("");
+  const conComprobante = !movimiento && tieneFuncion("COMPROBANTES") && esPro();
 
   abrirDialogo({
     titulo: movimiento ? "Editar movimiento" : "Nuevo movimiento",
@@ -52,13 +63,32 @@ export async function abrirFormularioMovimiento(movimiento = null) {
         </label>
         <label class="campo">
           <span class="campo-etiqueta">Categoría</span>
-          <select class="entrada" name="categoria_id">${opciones}</select>
+          <select class="entrada" name="categoria_id">${opciones(categorias, movimiento?.categoria_id)}</select>
         </label>
       </div>
+      ${
+        conCajas && cajas.length
+          ? `<label class="campo">
+               <span class="campo-etiqueta">Caja <span class="texto-tenue">(de dónde sale o a dónde entra)</span></span>
+               <select class="entrada" name="caja_id">
+                 <option value="">Sin caja</option>
+                 ${opciones(cajas, movimiento?.caja_id)}
+               </select>
+             </label>`
+          : ""
+      }
       <label class="campo">
         <span class="campo-etiqueta">Descripción <span class="texto-tenue">(opcional)</span></span>
         <input class="entrada" name="descripcion" maxlength="255" placeholder="Ej. Mercado de la semana" value="${escapar(movimiento?.descripcion ?? "")}">
-      </label>`,
+      </label>
+      ${
+        conComprobante
+          ? `<label class="campo">
+               <span class="campo-etiqueta">Comprobante ${insigniaPro()} <span class="texto-tenue">(opcional: foto o PDF, máx. 2 MB)</span></span>
+               <input class="entrada entrada-archivo" type="file" name="archivo" accept="image/jpeg,image/png,image/webp,application/pdf">
+             </label>`
+          : ""
+      }`,
     alEnviar: async (datos) => {
       const cuerpo = {
         tipo: datos.get("tipo"),
@@ -67,13 +97,23 @@ export async function abrirFormularioMovimiento(movimiento = null) {
         categoria_id: Number(datos.get("categoria_id")),
         descripcion: datos.get("descripcion").trim(),
       };
+      if (conCajas && datos.has("caja_id")) cuerpo.caja_id = datos.get("caja_id") ? Number(datos.get("caja_id")) : null;
+
       if (movimiento) {
         await api.movimientos.actualizar(movimiento.id, cuerpo);
         notificar("Movimiento actualizado");
       } else {
         const respuesta = await api.movimientos.crear(cuerpo);
+        const archivo = datos.get("archivo");
+        if (archivo && archivo.size) {
+          try {
+            await api.movimientos.subirComprobante(respuesta.movimiento.id, archivo);
+          } catch (error) {
+            notificar(`El movimiento se guardó, pero no el comprobante: ${error.message}`, "advertencia");
+          }
+        }
         notificar(cuerpo.tipo === "INGRESO" ? "Ingreso registrado" : "Gasto registrado");
-        if (respuesta.alerta_presupuesto) notificar(respuesta.alerta_presupuesto, "advertencia");
+        respuesta.alertas.forEach((alerta) => notificar(alerta, "advertencia"));
       }
       avisarCambio();
     },

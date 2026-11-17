@@ -1,6 +1,44 @@
 // Fragmentos de HTML que se repiten en varias vistas.
 import { icono } from "./iconos.js";
 import { escapar, formatoFechaCorta, formatoMoneda, formatoMontoConSigno } from "./formato.js";
+import { esPro, puede } from "./sesion.js";
+
+/** Barra de progreso; `clase` = bien | aviso | critico | acento. */
+export const barraProgreso = (fraccion, clase = "acento", etiqueta = "Progreso") => `
+  <div class="medidor" role="meter" aria-label="${etiqueta}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(fraccion * 100)}">
+    <span class="medidor-relleno medidor-relleno--${clase}" style="width:${Math.min(Math.max(fraccion, 0), 1) * 100}%"></span>
+  </div>`;
+
+/** Botones de editar y eliminar, solo si el usuario puede gestionar. */
+export function botonesEdicion(id, nombre = "registro", { editar = true, eliminar = true } = {}) {
+  if (!puede("GESTIONAR")) return "";
+  return `
+    <div class="categoria-acciones">
+      ${editar ? `<button type="button" class="boton-icono" data-editar="${id}" aria-label="Editar ${escapar(nombre)}" title="Editar">${icono("lapiz")}</button>` : ""}
+      ${eliminar ? `<button type="button" class="boton-icono boton-icono--peligro" data-eliminar="${id}" aria-label="Eliminar ${escapar(nombre)}" title="Eliminar">${icono("papelera")}</button>` : ""}
+    </div>`;
+}
+
+/** "2 de 3 en el plan Gratis" con enlace a los planes; nada si es Pro. */
+export function cupoDelPlan(usados, limite, nombre) {
+  if (esPro()) return "";
+  const lleno = usados >= limite;
+  return `
+    <p class="cupo-plan ${lleno ? "cupo-plan--lleno" : ""}">
+      ${icono("estrella")}
+      <span>Usas <b>${usados} de ${limite}</b> ${nombre} del plan Gratis.</span>
+      <a class="enlace" href="#/cuenta">${lleno ? "Mejorar a Pro" : "Ver planes"}</a>
+    </p>`;
+}
+
+export const insigniaPro = () => '<span class="insignia-pro">PRO</span>';
+
+/** Enlaza los botones [data-editar] y [data-eliminar] de un contenedor con sus acciones. */
+export function enlazarEdicion(contenedor, lista, { alEditar, alEliminar }) {
+  const buscar = (id) => lista.find((x) => x.id === Number(id));
+  contenedor.querySelectorAll("[data-editar]").forEach((b) => b.addEventListener("click", () => alEditar(buscar(b.dataset.editar))));
+  contenedor.querySelectorAll("[data-eliminar]").forEach((b) => b.addEventListener("click", () => alEliminar(buscar(b.dataset.eliminar))));
+}
 
 export const SERIES = [
   { nombre: "Ingresos", colorVar: "--serie-ingreso" },
@@ -19,7 +57,15 @@ export function cabecera({ titulo, subtitulo = "", acciones = "" }) {
 }
 
 export const botonNuevoMovimiento = (clase = "boton--primario") =>
-  `<button type="button" class="boton ${clase}" data-accion="nuevo-movimiento">${icono("mas")}<span>Nuevo movimiento</span><kbd>N</kbd></button>`;
+  puede("REGISTRAR_MOVIMIENTOS")
+    ? `<button type="button" class="boton ${clase}" data-accion="nuevo-movimiento">${icono("mas")}<span>Nuevo movimiento</span><kbd>N</kbd></button>`
+    : "";
+
+/** Botón principal de una vista ("Nuevo …"), solo si el usuario puede gestionar. */
+export const botonPrincipal = (accion, texto, clase = "boton--primario") =>
+  puede("GESTIONAR")
+    ? `<button type="button" class="boton ${clase}" data-accion="${accion}">${icono("mas")}<span>${texto}</span></button>`
+    : "";
 
 export function estadoVacio({ icono: nombreIcono = "bandeja", titulo, texto = "", accion = "" }) {
   return `
