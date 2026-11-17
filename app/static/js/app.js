@@ -44,7 +44,8 @@ function vistaPermitida(nombre) {
   return true;
 }
 
-const vistaInicial = () => ORDEN_INICIO.find(vistaPermitida);
+// Un administrador de la plataforma empieza en su panel; el resto, en el primero que pueda ver.
+const vistaInicial = () => (esAdministrador() ? "administracion" : ORDEN_INICIO.find(vistaPermitida));
 
 /* Decide qué mostrar: pantalla de ingreso o la aplicación --------------------- */
 let avisoPendiente = "";
@@ -117,7 +118,7 @@ function pintarUsuario() {
     `${escapar(usuario.nombre)}${usuario.plan === "PRO" ? ' <span class="insignia-pro">PRO</span>' : ""}`;
   document.getElementById("usuario-detalle").textContent = usuario.negocio_id
     ? `${ROLES_NEGOCIO[usuario.rol_negocio]} · ${usuario.nombre_negocio}`
-    : usuario.email;
+    : esAdministrador() ? `Administrador · ${usuario.email}` : usuario.email;
   document.getElementById("marca-subtitulo").textContent = esNegocio()
     ? usuario.nombre_negocio || "Cuenta de negocio"
     : "Finanzas personales";

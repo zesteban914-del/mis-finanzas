@@ -44,6 +44,10 @@
       <!-- Cada enlace declara qué necesita: data-permiso, data-funcion o data-admin.
            app.js oculta los que el usuario no puede usar (la API igual lo verifica). -->
       <nav class="navegacion" aria-label="Secciones">
+        <div class="grupo-nav grupo-nav--admin">
+          <span class="navegacion-titulo">Administración</span>
+          <a href="#/administracion" data-vista="administracion" data-icono="escudo" data-admin><span>Panel de administración</span></a>
+        </div>
         <div class="grupo-nav">
           <span class="navegacion-titulo">General</span>
           <a href="#/panel" data-vista="panel" data-icono="panel" data-permiso="VER_REPORTES"><span>Panel</span></a>
@@ -65,7 +69,6 @@
         <div class="grupo-nav">
           <span class="navegacion-titulo">Cuenta</span>
           <a href="#/cuenta" data-vista="cuenta" data-icono="ajustes"><span>Mi cuenta y plan</span></a>
-          <a href="#/administracion" data-vista="administracion" data-icono="escudo" data-admin><span>Usuarios</span></a>
         </div>
       </nav>
 

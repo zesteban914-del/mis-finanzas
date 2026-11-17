@@ -654,6 +654,9 @@ tr:hover .acciones .boton-icono { opacity: 1; }
 /* Navegación por grupos */
 .navegacion { gap: 18px; overflow-y: auto; }
 .grupo-nav { display: flex; flex-direction: column; gap: 2px; }
+.grupo-nav--admin { padding: 8px; margin: 0 -8px; border-radius: var(--radio-md); background: var(--acento-suave); }
+.grupo-nav--admin .navegacion-titulo { color: var(--acento); }
+.grupo-nav--admin a.activo { background: var(--superficie); }
 .insignia-pro {
   display: inline-block; padding: 1px 6px; border-radius: 5px; vertical-align: 1px;
   background: linear-gradient(135deg, #f5b301, #eb6834); color: #fff;
@@ -1012,6 +1015,7 @@ tr:hover .acciones .boton-icono { opacity: 1; }
   .navegacion::-webkit-scrollbar { display: none; }
   .grupo-nav { flex-direction: row; gap: 0; }
   .grupo-nav[hidden] { display: none !important; }
+  .grupo-nav--admin { padding: 0; margin: 0; background: none; }
   .navegacion a { min-width: 74px; }
   .rejilla-dos, .planes { grid-template-columns: minmax(0, 1fr); }
   .kpis--3 { grid-template-columns: minmax(0, 1fr); }

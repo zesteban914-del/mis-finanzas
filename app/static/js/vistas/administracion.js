@@ -17,7 +17,7 @@ export async function renderizar(contenedor) {
 
   contenedor.innerHTML = `
     ${cabecera({
-      titulo: "Usuarios",
+      titulo: "Panel de administración",
       subtitulo: "Gestiona las cuentas de la plataforma. Por privacidad, aquí no se ven los datos financieros de nadie.",
     })}
 
