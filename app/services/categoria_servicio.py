@@ -5,18 +5,18 @@ from sqlalchemy.orm import Session
 from app.models import Categoria
 from app.repositories import RepositorioCategorias, RepositorioMovimientos
 from app.schemas import CategoriaCrear
-from app.services.excepciones import ConflictoDeDatos, RecursoNoEncontrado
+from app.services.excepciones import ConflictoDeDatos, ErrorDeValidacion, RecursoNoEncontrado
 
 
 class ServicioCategorias:
-    """Reglas de negocio de las categorías."""
+    """Reglas de negocio de las categorías de un usuario."""
 
-    def __init__(self, db: Session):
-        self.repositorio = RepositorioCategorias(db)
-        self.repositorio_movimientos = RepositorioMovimientos(db)
+    def __init__(self, db: Session, usuario_id: int):
+        self.repositorio = RepositorioCategorias(db, usuario_id)
+        self.repositorio_movimientos = RepositorioMovimientos(db, usuario_id)
 
     def crear(self, datos: CategoriaCrear) -> Categoria:
-        nombre = datos.nombre.strip()
+        nombre = self._limpiar_nombre(datos.nombre)
         self._validar_nombre_disponible(nombre)
         return self.repositorio.crear(nombre=nombre)
 
@@ -33,7 +33,7 @@ class ServicioCategorias:
 
     def actualizar(self, categoria_id: int, datos: CategoriaCrear) -> Categoria:
         categoria = self.obtener(categoria_id)
-        nombre = datos.nombre.strip()
+        nombre = self._limpiar_nombre(datos.nombre)
         if nombre != categoria.nombre:
             self._validar_nombre_disponible(nombre)
         return self.repositorio.actualizar(categoria, nombre=nombre)
@@ -47,6 +47,13 @@ class ServicioCategorias:
                 f"porque tiene {cantidad} movimiento(s) asociado(s)"
             )
         self.repositorio.eliminar(categoria)
+
+    @staticmethod
+    def _limpiar_nombre(nombre: str) -> str:
+        nombre = nombre.strip()
+        if not nombre:
+            raise ErrorDeValidacion("El nombre de la categoría no puede estar vacío")
+        return nombre
 
     def _validar_nombre_disponible(self, nombre: str) -> None:
         if self.repositorio.obtener_por_nombre(nombre) is not None:

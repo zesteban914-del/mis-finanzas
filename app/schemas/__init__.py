@@ -13,6 +13,14 @@ from app.schemas.presupuesto import (
     PresupuestoRespuesta,
 )
 from app.schemas.reporte import ResumenCategoria, ResumenMensual, SaldoRespuesta
+from app.schemas.usuario import (
+    CambioUsuarioAdmin,
+    EstadisticasAdmin,
+    RegistroUsuario,
+    SesionRespuesta,
+    UsuarioAdminRespuesta,
+    UsuarioRespuesta,
+)
 
 __all__ = [
     "CategoriaCrear",
@@ -27,4 +35,10 @@ __all__ = [
     "SaldoRespuesta",
     "ResumenCategoria",
     "ResumenMensual",
+    "RegistroUsuario",
+    "UsuarioRespuesta",
+    "SesionRespuesta",
+    "UsuarioAdminRespuesta",
+    "CambioUsuarioAdmin",
+    "EstadisticasAdmin",
 ]

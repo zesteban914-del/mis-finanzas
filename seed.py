@@ -1,24 +1,38 @@
-"""Carga datos de ejemplo: categorías, 6 meses de movimientos y presupuestos.
+"""Carga datos de demostración: cuentas, categorías, 6 meses de movimientos y presupuestos.
 
 Uso:  python seed.py
-Es idempotente: no duplica categorías ni presupuestos, y un mes que ya
-tiene movimientos no se vuelve a llenar.
+Es idempotente: no duplica cuentas, categorías ni presupuestos, y un mes que
+ya tiene movimientos no se vuelve a llenar.
+
+Cuentas que crea (las contraseñas se pueden cambiar con variables de entorno):
+  - Administrador:  admin@misfinanzas.test  / Admin12345   (SEED_ADMIN_CONTRASENA)
+  - Usuario demo:   demo@misfinanzas.test   / Demo12345    (SEED_DEMO_CONTRASENA)
+  - Dos cuentas extra para que la sección de administración tenga contenido.
+Son cuentas de DEMOSTRACIÓN: no usar estas contraseñas en producción.
 """
 
+import os
 from datetime import date
 from decimal import Decimal
 
 from app import models  # noqa: F401
 from app.database import Base, SesionLocal, engine
-from app.models import Categoria, Movimiento, Presupuesto, TipoMovimiento
+from app.models import Categoria, Movimiento, Presupuesto, RolUsuario, TipoMovimiento, Usuario
 from app.repositories.movimiento_repositorio import rango_del_mes
+from app.seguridad import cifrar_contrasena
+from app.services.autenticacion_servicio import CATEGORIAS_INICIALES
 
 INGRESO, GASTO = TipoMovimiento.INGRESO, TipoMovimiento.GASTO
 
-CATEGORIAS = [
-    "Salario", "Freelance", "Vivienda", "Comida", "Transporte",
-    "Servicios", "Entretenimiento", "Salud",
+CUENTAS = [
+    # (nombre, email, contraseña, rol, activo)
+    ("Administrador", "admin@misfinanzas.test", os.getenv("SEED_ADMIN_CONTRASENA", "Admin12345"), RolUsuario.ADMIN, True),
+    ("Usuario Demo", "demo@misfinanzas.test", os.getenv("SEED_DEMO_CONTRASENA", "Demo12345"), RolUsuario.USUARIO, True),
+    ("Panadería La Espiga", "espiga@misfinanzas.test", "Espiga12345", RolUsuario.USUARIO, True),
+    ("Cuenta Inactiva", "inactiva@misfinanzas.test", "Inactiva12345", RolUsuario.USUARIO, False),
 ]
+
+CATEGORIAS_DEMO = ["Salario", "Freelance", "Vivienda", "Comida", "Transporte", "Servicios", "Entretenimiento", "Salud"]
 
 # (día, tipo, monto, categoría, descripción). Los montos de los gastos
 # variables se multiplican por un factor distinto cada mes.
@@ -43,8 +57,15 @@ EXTRAS_POR_MES = {
     3: [(20, GASTO, 380_000, "Entretenimiento", "Concierto")],
     4: [(15, INGRESO, 480_000, "Freelance", "Asesoría de Excel")],
 }
-# Presupuestos: el del mes anterior queda superado a propósito.
+# Presupuestos del usuario demo: el del mes anterior queda superado a propósito.
 PRESUPUESTOS = {0: 1_500_000, 1: 1_800_000, 2: 2_200_000}
+
+# Pocos movimientos para la cuenta de la panadería (un negocio).
+MOVIMIENTOS_NEGOCIO = [
+    (2, INGRESO, 1_250_000, "Ventas", "Ventas de la semana"),
+    (4, GASTO, 380_000, "Insumos", "Harina y levadura"),
+    (6, GASTO, 210_000, "Servicios", "Energía del horno"),
+]
 
 
 def mes_desplazado(hoy: date, meses_atras: int) -> tuple[int, int]:
@@ -52,28 +73,50 @@ def mes_desplazado(hoy: date, meses_atras: int) -> tuple[int, int]:
     return total // 12, total % 12 + 1
 
 
-def obtener_o_crear_categoria(db, nombre: str) -> Categoria:
-    categoria = db.query(Categoria).filter(Categoria.nombre == nombre).first()
-    if categoria is None:
-        categoria = Categoria(nombre=nombre)
-        db.add(categoria)
+def obtener_o_crear_usuario(db, nombre, email, contrasena, rol, activo) -> Usuario:
+    usuario = db.query(Usuario).filter(Usuario.email == email).first()
+    if usuario is None:
+        usuario = Usuario(
+            nombre=nombre, email=email, contrasena_hash=cifrar_contrasena(contrasena),
+            rol=rol, activo=activo,
+        )
+        db.add(usuario)
         db.flush()
-    return categoria
+    return usuario
 
 
-def llenar_mes(db, categorias, anio: int, mes: int, meses_atras: int, hoy: date) -> int:
+def categorias_de(db, usuario: Usuario, nombres) -> dict:
+    resultado = {}
+    for nombre in nombres:
+        categoria = (
+            db.query(Categoria)
+            .filter(Categoria.usuario_id == usuario.id, Categoria.nombre == nombre)
+            .first()
+        )
+        if categoria is None:
+            categoria = Categoria(nombre=nombre, usuario_id=usuario.id)
+            db.add(categoria)
+            db.flush()
+        resultado[nombre] = categoria
+    return resultado
+
+
+def llenar_mes(db, usuario, categorias, anio, mes, plantilla, factor, hoy) -> int:
     inicio, fin = rango_del_mes(anio, mes)
     ya_tiene = (
         db.query(Movimiento)
-        .filter(Movimiento.fecha >= inicio, Movimiento.fecha < fin)
+        .filter(
+            Movimiento.usuario_id == usuario.id,
+            Movimiento.fecha >= inicio,
+            Movimiento.fecha < fin,
+        )
         .count()
     )
     if ya_tiene:
         return 0
 
-    factor = FACTOR_POR_MES.get(meses_atras, 1.0)
     creados = 0
-    for dia, tipo, monto, categoria, descripcion in PLANTILLA_MES + EXTRAS_POR_MES.get(meses_atras, []):
+    for dia, tipo, monto, categoria, descripcion in plantilla:
         fecha = date(anio, mes, dia)
         if fecha > hoy:  # regla de negocio: nunca fechas futuras
             continue
@@ -86,6 +129,7 @@ def llenar_mes(db, categorias, anio: int, mes: int, meses_atras: int, hoy: date)
                 fecha=fecha,
                 descripcion=descripcion,
                 categoria_id=categorias[categoria].id,
+                usuario_id=usuario.id,
             )
         )
         creados += 1
@@ -97,21 +141,43 @@ def cargar_datos() -> None:
     db = SesionLocal()
     try:
         hoy = date.today()
-        categorias = {n: obtener_o_crear_categoria(db, n) for n in CATEGORIAS}
+        usuarios = {cuenta[1]: obtener_o_crear_usuario(db, *cuenta) for cuenta in CUENTAS}
+        admin = usuarios["admin@misfinanzas.test"]
+        demo = usuarios["demo@misfinanzas.test"]
+        negocio = usuarios["espiga@misfinanzas.test"]
+        inactiva = usuarios["inactiva@misfinanzas.test"]
 
+        categorias_de(db, admin, CATEGORIAS_INICIALES)
+        categorias_de(db, inactiva, CATEGORIAS_INICIALES)
+
+        # Usuario demo: 6 meses de historia y 3 presupuestos.
+        categorias_demo = categorias_de(db, demo, CATEGORIAS_DEMO)
         creados = 0
         for meses_atras in range(5, -1, -1):
             anio, mes = mes_desplazado(hoy, meses_atras)
-            creados += llenar_mes(db, categorias, anio, mes, meses_atras, hoy)
+            plantilla = PLANTILLA_MES + EXTRAS_POR_MES.get(meses_atras, [])
+            factor = FACTOR_POR_MES.get(meses_atras, 1.0)
+            creados += llenar_mes(db, demo, categorias_demo, anio, mes, plantilla, factor, hoy)
 
         for meses_atras, limite in PRESUPUESTOS.items():
             anio, mes = mes_desplazado(hoy, meses_atras)
             clave = f"{anio:04d}-{mes:02d}"
-            if db.query(Presupuesto).filter(Presupuesto.mes == clave).first() is None:
-                db.add(Presupuesto(mes=clave, limite=Decimal(limite)))
+            existe = (
+                db.query(Presupuesto)
+                .filter(Presupuesto.usuario_id == demo.id, Presupuesto.mes == clave)
+                .first()
+            )
+            if existe is None:
+                db.add(Presupuesto(mes=clave, limite=Decimal(limite), usuario_id=demo.id))
+
+        # Cuenta de negocio: unos pocos movimientos del mes actual.
+        categorias_negocio = categorias_de(db, negocio, ["Ventas", "Insumos", "Servicios"])
+        creados += llenar_mes(
+            db, negocio, categorias_negocio, hoy.year, hoy.month, MOVIMIENTOS_NEGOCIO, 1.0, hoy
+        )
 
         db.commit()
-        print(f"Datos de ejemplo listos: {creados} movimientos nuevos.")
+        print(f"Datos de demostración listos: {len(CUENTAS)} cuentas, {creados} movimientos nuevos.")
     finally:
         db.close()
 

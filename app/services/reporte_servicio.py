@@ -9,10 +9,10 @@ from app.services.validaciones import validar_mes
 
 
 class ServicioReportes:
-    """Cálculos de saldo y resumen mensual."""
+    """Cálculos de saldo y resumen mensual de un usuario."""
 
-    def __init__(self, db: Session):
-        self.repositorio_movimientos = RepositorioMovimientos(db)
+    def __init__(self, db: Session, usuario_id: int):
+        self.repositorio_movimientos = RepositorioMovimientos(db, usuario_id)
 
     def saldo(self) -> SaldoRespuesta:
         """Saldo = suma de ingresos - suma de gastos."""

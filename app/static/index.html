@@ -18,13 +18,18 @@
   </script>
 </head>
 <body>
-  <div class="app">
+  <main id="autenticacion" class="autenticacion" hidden></main>
+
+  <div class="app" hidden>
     <header class="cabecera-movil">
       <a class="marca" href="#/panel">
         <span class="marca-logo" data-icono="tendencia"></span>
         <strong>Mis Finanzas</strong>
       </a>
-      <button type="button" class="boton-icono js-tema"></button>
+      <div class="cabecera-movil-acciones">
+        <button type="button" class="boton-icono js-tema"></button>
+        <button type="button" class="boton-icono js-salir" aria-label="Cerrar sesión" title="Cerrar sesión" data-icono="salir"></button>
+      </div>
     </header>
 
     <aside class="barra-lateral">
@@ -42,11 +47,21 @@
         <a href="#/movimientos" data-vista="movimientos" data-icono="movimientos"><span>Movimientos</span></a>
         <a href="#/categorias" data-vista="categorias" data-icono="etiqueta"><span>Categorías</span></a>
         <a href="#/presupuestos" data-vista="presupuestos" data-icono="objetivo"><span>Presupuestos</span></a>
+        <span class="navegacion-titulo solo-admin" hidden>Administración</span>
+        <a href="#/administracion" data-vista="administracion" data-icono="escudo" class="solo-admin" hidden><span>Usuarios</span></a>
       </nav>
 
       <div class="barra-pie">
         <button type="button" class="boton-lateral js-tema"></button>
         <a class="boton-lateral" href="/docs" target="_blank" rel="noopener" data-icono="externo"><span>Documentación API</span></a>
+        <div class="tarjeta-usuario">
+          <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+          <span class="tarjeta-usuario-datos">
+            <strong id="usuario-nombre"></strong>
+            <small id="usuario-email"></small>
+          </span>
+          <button type="button" class="boton-icono js-salir" aria-label="Cerrar sesión" title="Cerrar sesión" data-icono="salir"></button>
+        </div>
       </div>
     </aside>
 

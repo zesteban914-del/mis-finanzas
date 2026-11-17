@@ -20,20 +20,25 @@ def rango_del_mes(anio: int, mes: int) -> Tuple[date, date]:
 
 
 class RepositorioMovimientos:
-    """Operaciones de base de datos sobre la tabla de movimientos."""
+    """Operaciones sobre los movimientos de UN usuario."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, usuario_id: int):
         self.db = db
+        self.usuario_id = usuario_id
+
+    def _consulta(self, *columnas):
+        consulta = self.db.query(*columnas) if columnas else self.db.query(Movimiento)
+        return consulta.filter(Movimiento.usuario_id == self.usuario_id)
 
     def crear(self, **datos) -> Movimiento:
-        movimiento = Movimiento(**datos)
+        movimiento = Movimiento(**datos, usuario_id=self.usuario_id)
         self.db.add(movimiento)
         self.db.commit()
         self.db.refresh(movimiento)
         return movimiento
 
     def obtener_por_id(self, movimiento_id: int) -> Optional[Movimiento]:
-        return self.db.get(Movimiento, movimiento_id)
+        return self._consulta().filter(Movimiento.id == movimiento_id).first()
 
     def listar(
         self,
@@ -41,7 +46,7 @@ class RepositorioMovimientos:
         fecha_fin: Optional[date] = None,
         categoria_id: Optional[int] = None,
     ) -> List[Movimiento]:
-        consulta = self.db.query(Movimiento)
+        consulta = self._consulta()
         if fecha_inicio is not None:
             consulta = consulta.filter(Movimiento.fecha >= fecha_inicio)
         if fecha_fin is not None:
@@ -63,7 +68,7 @@ class RepositorioMovimientos:
 
     def contar_por_categoria(self, categoria_id: int) -> int:
         return (
-            self.db.query(func.count(Movimiento.id))
+            self._consulta(func.count(Movimiento.id))
             .filter(Movimiento.categoria_id == categoria_id)
             .scalar()
             or 0
@@ -75,7 +80,7 @@ class RepositorioMovimientos:
         anio: Optional[int] = None,
         mes: Optional[int] = None,
     ) -> Decimal:
-        consulta = self.db.query(func.coalesce(func.sum(Movimiento.monto), 0)).filter(
+        consulta = self._consulta(func.coalesce(func.sum(Movimiento.monto), 0)).filter(
             Movimiento.tipo == tipo
         )
         if anio is not None and mes is not None:
@@ -95,7 +100,9 @@ class RepositorioMovimientos:
                 Movimiento.tipo,
                 func.sum(Movimiento.monto),
             )
-            .join(Movimiento, Movimiento.categoria_id == Categoria.id)
+            .select_from(Movimiento)
+            .join(Categoria, Movimiento.categoria_id == Categoria.id)
+            .filter(Movimiento.usuario_id == self.usuario_id)
             .filter(Movimiento.fecha >= inicio, Movimiento.fecha < fin)
             .group_by(Categoria.id, Categoria.nombre, Movimiento.tipo)
             .order_by(Categoria.nombre)

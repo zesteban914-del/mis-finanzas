@@ -1,4 +1,5 @@
 // Cliente de la API REST. Es el único módulo que hace peticiones HTTP.
+import { cerrarSesion, obtenerToken } from "./sesion.js";
 
 export class ErrorApi extends Error {
   constructor(mensaje, estado) {
@@ -14,6 +15,10 @@ const NOMBRES_CAMPOS = {
   categoria_id: "categoría",
   descripcion: "descripción",
   nombre: "nombre",
+  email: "correo",
+  contrasena: "contraseña",
+  username: "correo",
+  password: "contraseña",
   mes: "mes",
   limite: "límite",
 };
@@ -30,20 +35,32 @@ function mensajeDeError(cuerpo, estado) {
   return "No se pudo completar la operación";
 }
 
-async function solicitar(metodo, ruta, datos) {
+async function solicitar(metodo, ruta, datos, { formulario = false } = {}) {
+  const encabezados = {};
+  const token = obtenerToken();
+  if (token) encabezados.Authorization = `Bearer ${token}`;
+  let cuerpoPeticion;
+  if (formulario) {
+    cuerpoPeticion = new URLSearchParams(datos);
+  } else if (datos) {
+    encabezados["Content-Type"] = "application/json";
+    cuerpoPeticion = JSON.stringify(datos);
+  }
+
   let respuesta;
   try {
-    respuesta = await fetch(ruta, {
-      method: metodo,
-      headers: datos ? { "Content-Type": "application/json" } : {},
-      body: datos ? JSON.stringify(datos) : undefined,
-    });
+    respuesta = await fetch(ruta, { method: metodo, headers: encabezados, body: cuerpoPeticion });
   } catch {
     throw new ErrorApi("No hay conexión con el servidor. ¿Está corriendo la API?", 0);
   }
   if (respuesta.status === 204) return null;
   const cuerpo = await respuesta.json().catch(() => null);
-  if (!respuesta.ok) throw new ErrorApi(mensajeDeError(cuerpo, respuesta.status), respuesta.status);
+  if (!respuesta.ok) {
+    const mensaje = mensajeDeError(cuerpo, respuesta.status);
+    // Sesión vencida o cuenta desactivada: se vuelve a la pantalla de ingreso.
+    if (respuesta.status === 401 && token) cerrarSesion(mensaje);
+    throw new ErrorApi(mensaje, respuesta.status);
+  }
   return cuerpo;
 }
 
@@ -57,6 +74,18 @@ function consulta(parametros) {
 }
 
 export const api = {
+  auth: {
+    // Formato OAuth2 estándar: el correo va en "username".
+    iniciarSesion: (email, contrasena) =>
+      solicitar("POST", "/auth/login", { username: email, password: contrasena }, { formulario: true }),
+    registrarse: (datos) => solicitar("POST", "/auth/registro", datos),
+    miCuenta: () => solicitar("GET", "/auth/yo"),
+  },
+  admin: {
+    usuarios: () => solicitar("GET", "/admin/usuarios"),
+    estadisticas: () => solicitar("GET", "/admin/estadisticas"),
+    actualizarUsuario: (id, cambios) => solicitar("PATCH", `/admin/usuarios/${id}`, cambios),
+  },
   categorias: {
     listar: () => solicitar("GET", "/categorias"),
     crear: (datos) => solicitar("POST", "/categorias", datos),

@@ -81,7 +81,7 @@ export function abrirDialogo({ titulo, descripcion = "", contenido = "", textoCo
     }
   });
 
-  d.showModal();
+  if (!d.open) d.showModal();
   const primerCampo = formulario.querySelector(".dialogo-cuerpo input:not([type=radio]), .dialogo-cuerpo select");
   (primerCampo ?? botonEnviar).focus();
 }

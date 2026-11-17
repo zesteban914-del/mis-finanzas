@@ -1,24 +1,92 @@
-// Punto de entrada de la interfaz: navegación entre vistas, tema claro/oscuro y atajos.
-import { bus } from "./estado.js";
+// Punto de entrada de la interfaz: sesión, navegación entre vistas, tema y atajos.
+import { api } from "./api.js";
+import { bus, estado } from "./estado.js";
+import { mesActual } from "./formato.js";
 import { icono } from "./iconos.js";
 import { esqueleto, estadoError } from "./componentes.js";
-import { iniciarDialogo, ocultarTooltip } from "./ui.js";
+import { actualizarUsuario, cerrarSesion, esAdministrador, obtenerToken, usuarioActual } from "./sesion.js";
+import { iniciarDialogo, notificar, ocultarTooltip } from "./ui.js";
 import * as panel from "./vistas/panel.js";
 import * as movimientos from "./vistas/movimientos.js";
 import * as categorias from "./vistas/categorias.js";
 import * as presupuestos from "./vistas/presupuestos.js";
+import * as administracion from "./vistas/administracion.js";
+import { renderizarAutenticacion } from "./vistas/autenticacion.js";
 import { abrirFormularioMovimiento } from "./vistas/formulario-movimiento.js";
 
-const VISTAS = { panel, movimientos, categorias, presupuestos };
-const TITULOS = { panel: "Panel", movimientos: "Movimientos", categorias: "Categorías", presupuestos: "Presupuestos" };
-const contenido = document.getElementById("contenido");
-
-const vistaActual = () => {
-  const nombre = location.hash.replace(/^#\/?/, "");
-  return VISTAS[nombre] ? nombre : "panel";
+const VISTAS = { panel, movimientos, categorias, presupuestos, administracion };
+const TITULOS = {
+  panel: "Panel",
+  movimientos: "Movimientos",
+  categorias: "Categorías",
+  presupuestos: "Presupuestos",
+  administracion: "Usuarios",
 };
+const RUTAS_PUBLICAS = ["ingresar", "registro"];
 
-/* Navegación (las rutas son #/panel, #/movimientos, ...) ------------------- */
+const contenido = document.getElementById("contenido");
+const pantallaApp = document.querySelector(".app");
+const pantallaAutenticacion = document.getElementById("autenticacion");
+
+const rutaActual = () => location.hash.replace(/^#\/?/, "");
+
+function vistaActual() {
+  const nombre = rutaActual();
+  if (nombre === "administracion" && !esAdministrador()) return "panel";
+  return VISTAS[nombre] ? nombre : "panel";
+}
+
+/* Decide qué mostrar: pantalla de ingreso o la aplicación --------------------- */
+let avisoPendiente = "";
+
+function enrutar() {
+  if (!obtenerToken()) {
+    mostrarAutenticacion();
+  } else if (RUTAS_PUBLICAS.includes(rutaActual())) {
+    location.hash = "#/panel"; // con sesión iniciada no tiene sentido ver el login
+  } else if (rutaActual() === "administracion" && !esAdministrador()) {
+    location.hash = "#/panel"; // la API igual respondería 403
+  } else {
+    mostrarAplicacion();
+  }
+}
+
+function mostrarAutenticacion() {
+  ocultarTooltip();
+  pantallaApp.hidden = true;
+  pantallaAutenticacion.hidden = false;
+  renderizarAutenticacion(pantallaAutenticacion, {
+    modo: rutaActual() === "registro" ? "registro" : "ingresar",
+    aviso: avisoPendiente,
+    alEntrar: (usuario, esNuevo) => {
+      avisoPendiente = "";
+      notificar(esNuevo ? `¡Bienvenido, ${usuario.nombre}! Tu cuenta está lista.` : `Hola de nuevo, ${usuario.nombre}`);
+      if (location.hash === "#/panel") enrutar();
+      else location.hash = "#/panel";
+    },
+  });
+  avisoPendiente = "";
+}
+
+function mostrarAplicacion() {
+  pantallaAutenticacion.hidden = true;
+  pantallaAutenticacion.replaceChildren();
+  pantallaApp.hidden = false;
+  pintarUsuario();
+  mostrarVista();
+}
+
+function pintarUsuario() {
+  const usuario = usuarioActual();
+  if (!usuario) return;
+  const iniciales = usuario.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
+  document.getElementById("usuario-avatar").textContent = iniciales;
+  document.getElementById("usuario-nombre").textContent = usuario.nombre;
+  document.getElementById("usuario-email").textContent = usuario.email;
+  document.querySelectorAll(".solo-admin").forEach((elemento) => (elemento.hidden = !esAdministrador()));
+}
+
+/* Vistas internas (#/panel, #/movimientos, ...) -------------------------------- */
 let ultimaCarga = 0;
 
 async function mostrarVista({ conEsqueleto = true } = {}) {
@@ -38,6 +106,7 @@ async function mostrarVista({ conEsqueleto = true } = {}) {
   try {
     await VISTAS[nombre].renderizar(destino);
   } catch (error) {
+    if (!obtenerToken()) return; // la sesión se cerró mientras cargaba
     destino.innerHTML = estadoError(error.message);
   }
   if (carga !== ultimaCarga) return; // el usuario ya navegó a otra vista
@@ -45,8 +114,27 @@ async function mostrarVista({ conEsqueleto = true } = {}) {
   if (conEsqueleto) window.scrollTo({ top: 0 });
 }
 
-window.addEventListener("hashchange", () => mostrarVista());
-bus.addEventListener("refrescar", () => mostrarVista({ conEsqueleto: false }));
+window.addEventListener("hashchange", enrutar);
+bus.addEventListener("refrescar", () => {
+  if (obtenerToken()) mostrarVista({ conEsqueleto: false });
+});
+
+/* Cierre de sesión (por botón o porque el servidor la rechazó) ----------------- */
+bus.addEventListener("sesion-cerrada", (evento) => {
+  avisoPendiente = evento.detail.motivo;
+  estado.mes = mesActual();
+  movimientos.establecerFiltros({});
+  document.getElementById("dialogo").close();
+  if (location.hash === "#/ingresar") enrutar();
+  else location.hash = "#/ingresar";
+});
+
+document.querySelectorAll(".js-salir").forEach((boton) =>
+  boton.addEventListener("click", () => {
+    cerrarSesion();
+    notificar("Sesión cerrada");
+  })
+);
 
 /* Tema claro / oscuro ------------------------------------------------------- */
 const temaEfectivo = () =>
@@ -101,7 +189,7 @@ document.addEventListener("click", (evento) => {
 document.addEventListener("keydown", (evento) => {
   const escribiendo = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName);
   if (evento.key.toLowerCase() !== "n" || evento.ctrlKey || evento.metaKey || evento.altKey || escribiendo) return;
-  if (document.getElementById("dialogo").open) return;
+  if (pantallaApp.hidden || document.getElementById("dialogo").open) return;
   evento.preventDefault();
   abrirFormularioMovimiento();
 });
@@ -112,4 +200,14 @@ document.querySelectorAll("[data-icono]").forEach((elemento) =>
 );
 pintarBotonesTema();
 iniciarDialogo();
-mostrarVista();
+enrutar();
+
+// Refresca los datos de la cuenta (por si cambió el rol). Si el token ya no
+// sirve, api.js cierra la sesión y se muestra la pantalla de ingreso.
+if (obtenerToken()) {
+  api.auth.miCuenta().then((usuario) => {
+    actualizarUsuario(usuario);
+    pintarUsuario();
+    if (rutaActual() === "administracion" && !esAdministrador()) location.hash = "#/panel";
+  }).catch(() => {});
+}

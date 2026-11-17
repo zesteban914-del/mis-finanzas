@@ -9,13 +9,23 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 
+from app import config
 from app import models  # noqa: F401  (registra las tablas en Base.metadata)
-from app.controllers import categorias, movimientos, presupuestos, reportes
+from app.controllers import (
+    administracion,
+    autenticacion,
+    categorias,
+    movimientos,
+    presupuestos,
+    reportes,
+)
 from app.database import Base, engine
 from app.services.excepciones import (
     ConflictoDeDatos,
     ErrorDeValidacion,
+    NoAutenticado,
     RecursoNoEncontrado,
+    SinPermiso,
 )
 
 registro = logging.getLogger("uvicorn.error")
@@ -24,6 +34,11 @@ registro = logging.getLogger("uvicorn.error")
 @asynccontextmanager
 async def ciclo_de_vida(app: FastAPI):
     """Crea las tablas al iniciar; si la BD no responde, lo explica claramente."""
+    if config.CLAVE_SECRETA == config.CLAVE_DE_DESARROLLO:
+        registro.warning(
+            "Usando la clave de desarrollo para firmar sesiones. "
+            "En producción define la variable de entorno CLAVE_SECRETA."
+        )
     try:
         Base.metadata.create_all(bind=engine)
     except OperationalError as error:
@@ -41,31 +56,41 @@ async def ciclo_de_vida(app: FastAPI):
 
 app = FastAPI(
     lifespan=ciclo_de_vida,
-    title="Control de Gastos Personales",
+    title="Mis Finanzas · Control de Gastos",
     description=(
         "API para registrar ingresos y gastos, administrar categorías, "
         "consultar el saldo, generar resúmenes mensuales y controlar "
-        "presupuestos."
+        "presupuestos. Cada usuario ve solo sus propios datos.\n\n"
+        "**Para probarla aquí:** crea una cuenta en `POST /auth/registro` y "
+        "luego usa el botón **Authorize** con tu correo y contraseña."
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
+app.include_router(autenticacion.router)
 app.include_router(categorias.router)
 app.include_router(movimientos.router)
 app.include_router(presupuestos.router)
 app.include_router(reportes.router)
+app.include_router(administracion.router)
 
 
-def _crear_manejador(codigo_http: int):
+def _crear_manejador(codigo_http: int, encabezados: dict | None = None):
     async def manejador(request: Request, exc: Exception):
         return JSONResponse(
-            status_code=codigo_http, content={"detalle": exc.mensaje}
+            status_code=codigo_http,
+            content={"detalle": exc.mensaje},
+            headers=encabezados,
         )
 
     return manejador
 
 
 app.add_exception_handler(ErrorDeValidacion, _crear_manejador(400))
+app.add_exception_handler(
+    NoAutenticado, _crear_manejador(401, {"WWW-Authenticate": "Bearer"})
+)
+app.add_exception_handler(SinPermiso, _crear_manejador(403))
 app.add_exception_handler(RecursoNoEncontrado, _crear_manejador(404))
 app.add_exception_handler(ConflictoDeDatos, _crear_manejador(409))
 

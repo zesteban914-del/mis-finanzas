@@ -12,12 +12,12 @@ from app.services.presupuesto_servicio import ServicioPresupuestos
 
 
 class ServicioMovimientos:
-    """Reglas de negocio de los movimientos (ingresos y gastos)."""
+    """Reglas de negocio de los movimientos (ingresos y gastos) de un usuario."""
 
-    def __init__(self, db: Session):
-        self.repositorio = RepositorioMovimientos(db)
-        self.repositorio_categorias = RepositorioCategorias(db)
-        self.servicio_presupuestos = ServicioPresupuestos(db)
+    def __init__(self, db: Session, usuario_id: int):
+        self.repositorio = RepositorioMovimientos(db, usuario_id)
+        self.repositorio_categorias = RepositorioCategorias(db, usuario_id)
+        self.servicio_presupuestos = ServicioPresupuestos(db, usuario_id)
 
     def crear(self, datos: MovimientoCrear) -> Tuple[Movimiento, Optional[str]]:
         """Crea el movimiento y devuelve (movimiento, alerta de presupuesto)."""

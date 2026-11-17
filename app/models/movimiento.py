@@ -12,7 +12,7 @@ class TipoMovimiento(str, enum.Enum):
 
 
 class Movimiento(Base):
-    """Un ingreso o un gasto registrado por el usuario."""
+    """Un ingreso o un gasto registrado por un usuario."""
 
     __tablename__ = "movimientos"
 
@@ -22,5 +22,6 @@ class Movimiento(Base):
     fecha = Column(Date, nullable=False, index=True)
     descripcion = Column(String(255), nullable=False, default="")
     categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
 
     categoria = relationship("Categoria", back_populates="movimientos")

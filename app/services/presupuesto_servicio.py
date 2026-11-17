@@ -19,11 +19,11 @@ def formato_pesos(valor) -> str:
 
 
 class ServicioPresupuestos:
-    """Reglas de negocio de los presupuestos mensuales."""
+    """Reglas de negocio de los presupuestos mensuales de un usuario."""
 
-    def __init__(self, db: Session):
-        self.repositorio = RepositorioPresupuestos(db)
-        self.repositorio_movimientos = RepositorioMovimientos(db)
+    def __init__(self, db: Session, usuario_id: int):
+        self.repositorio = RepositorioPresupuestos(db, usuario_id)
+        self.repositorio_movimientos = RepositorioMovimientos(db, usuario_id)
 
     def crear(self, datos: PresupuestoCrear) -> Presupuesto:
         validar_mes(datos.mes)
