@@ -2,9 +2,11 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 
 from app import models  # noqa: F401  (registra las tablas en Base.metadata)
@@ -68,9 +70,20 @@ app.add_exception_handler(RecursoNoEncontrado, _crear_manejador(404))
 app.add_exception_handler(ConflictoDeDatos, _crear_manejador(409))
 
 
-@app.get("/", tags=["Inicio"])
-def inicio():
-    return {
-        "mensaje": "API de Control de Gastos Personales",
-        "documentacion": "/docs",
-    }
+CARPETA_INTERFAZ = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=CARPETA_INTERFAZ), name="static")
+
+
+@app.middleware("http")
+async def revalidar_interfaz(request: Request, call_next):
+    """Evita que el navegador use una versión vieja de la interfaz tras un cambio."""
+    respuesta = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        respuesta.headers["Cache-Control"] = "no-cache"
+    return respuesta
+
+
+@app.get("/", include_in_schema=False)
+def interfaz_web():
+    """Sirve la interfaz web; esta consume los mismos endpoints de la API."""
+    return FileResponse(CARPETA_INTERFAZ / "index.html")

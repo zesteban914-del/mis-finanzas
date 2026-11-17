@@ -1,28 +1,63 @@
 # Control de Gastos Personales
 
-API REST para registrar ingresos y gastos, administrar categorías, consultar
-el saldo, obtener un resumen mensual por categoría y controlar un presupuesto
-mensual. Proyecto académico de Construcción de Software.
+Aplicación web para registrar ingresos y gastos, administrar categorías,
+consultar el saldo, ver un resumen mensual por categoría y controlar un
+presupuesto mensual. Tiene una API REST y una interfaz web que la consume.
+Proyecto académico de Construcción de Software.
 
 **Stack:** Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, pytest.
+Interfaz en HTML, CSS y JavaScript sin librerías ni pasos de compilación.
 
 ## Arquitectura por capas
 
 ```
 app/
-├── main.py           # Crea la app, registra routers y traduce errores a HTTP
+├── main.py           # Crea la app, registra routers, traduce errores a HTTP y sirve la interfaz
 ├── database.py       # Conexión a la BD y sesión por petición
 ├── models/           # Entidades (tablas): Categoria, Movimiento, Presupuesto
 ├── schemas/          # Validación de entrada y forma de salida (Pydantic)
 ├── repositories/     # Acceso a datos (patrón Repository): solo consultas
 ├── services/         # Reglas de negocio y cálculos (no conocen HTTP)
-└── controllers/      # Endpoints: reciben la petición y llaman al servicio
-tests/                # Pruebas de integración de la API con pytest
-seed.py               # Datos de ejemplo
+├── controllers/      # Endpoints: reciben la petición y llaman al servicio
+└── static/           # Interfaz web (capa de presentación)
+    ├── index.html
+    ├── css/estilos.css      # Diseño: colores claro/oscuro, componentes, responsive
+    └── js/
+        ├── app.js           # Navegación entre vistas, tema y atajos de teclado
+        ├── api.js           # Único módulo que llama a la API REST
+        ├── formato.js       # Dinero (COP) y fechas en español
+        ├── componentes.js   # Piezas de HTML reutilizables (KPIs, medidor, etc.)
+        ├── graficos.js      # Gráficos de barras y columnas hechos con CSS
+        ├── ui.js            # Notificaciones, diálogo modal y tooltip
+        └── vistas/          # Panel, Movimientos, Categorías, Presupuestos y formularios
+tests/                # Pruebas unitarias y de integración con pytest
+seed.py               # Datos de ejemplo (6 meses de movimientos)
+docker-compose.yml    # PostgreSQL del proyecto
 ```
 
-Flujo de una petición: **controlador → servicio → repositorio → base de datos**.
-Cada capa solo conoce a la de abajo.
+Flujo de una petición: **interfaz → controlador → servicio → repositorio → base de datos**.
+Cada capa solo conoce a la de abajo. La interfaz no tiene reglas de negocio:
+envía los datos a la API y muestra sus mensajes de error tal como llegan
+(por ejemplo "El monto debe ser mayor que 0").
+
+## Interfaz web
+
+Al abrir <http://localhost:8000> se ve:
+
+- **Panel:** saldo actual, ingresos, gastos y balance del mes (con la variación
+  frente al mes anterior), estado del presupuesto, gastos por categoría,
+  ingresos vs. gastos de los últimos 6 meses y movimientos recientes. Con las
+  flechas se cambia de mes.
+- **Movimientos:** tabla con filtros por rango de fechas, categoría y tipo;
+  crear, editar y eliminar.
+- **Categorías:** crear, renombrar y eliminar (si tiene movimientos, la API lo
+  impide y la interfaz muestra el motivo).
+- **Presupuestos:** un límite por mes con su barra de uso y estado.
+
+Detalles de diseño: modo claro y oscuro, versión para celular, colores fijos
+(azul = ingresos, naranja = gastos), estados del presupuesto con icono y texto
+(no solo color), cada gráfico tiene también vista de tabla, y la tecla **N**
+abre el formulario de nuevo movimiento.
 
 ### Principios SOLID aplicados
 - **S (Responsabilidad única):** cada capa y cada clase tiene una sola tarea
@@ -86,7 +121,8 @@ python seed.py                  # carga datos de ejemplo (opcional)
 uvicorn app.main:app --reload
 ```
 
-Documentación interactiva: <http://localhost:8000/docs>
+- Interfaz web: <http://localhost:8000>
+- Documentación interactiva de la API: <http://localhost:8000/docs>
 
 ## Correr las pruebas
 

@@ -13,6 +13,11 @@ from app.services.excepciones import (
 from app.services.validaciones import validar_mes
 
 
+def formato_pesos(valor) -> str:
+    """1234567.5 → '$1.234.568' (separador de miles con punto, como en Colombia)."""
+    return "$" + f"{valor:,.0f}".replace(",", ".")
+
+
 class ServicioPresupuestos:
     """Reglas de negocio de los presupuestos mensuales."""
 
@@ -76,8 +81,9 @@ class ServicioPresupuestos:
         )
         if total_gastado > presupuesto.limite:
             return (
-                f"Presupuesto de {clave} superado: has gastado {total_gastado} "
-                f"y el límite es {presupuesto.limite}"
+                f"Presupuesto de {clave} superado: llevas "
+                f"{formato_pesos(total_gastado)} gastados y el límite es "
+                f"{formato_pesos(presupuesto.limite)}"
             )
         return None
 

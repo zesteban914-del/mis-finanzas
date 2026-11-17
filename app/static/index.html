@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mis Finanzas · Control de gastos</title>
+  <meta name="description" content="Control de gastos personales: ingresos, gastos, categorías y presupuesto mensual.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233987e5'/%3E%3Cstop offset='1' stop-color='%231c5cab'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M9 20l5-5 3 3 6-7' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/css/estilos.css">
+  <script>
+    try {
+      var temaGuardado = localStorage.getItem("tema");
+      if (temaGuardado) document.documentElement.dataset.theme = temaGuardado;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="app">
+    <header class="cabecera-movil">
+      <a class="marca" href="#/panel">
+        <span class="marca-logo" data-icono="tendencia"></span>
+        <strong>Mis Finanzas</strong>
+      </a>
+      <button type="button" class="boton-icono js-tema"></button>
+    </header>
+
+    <aside class="barra-lateral">
+      <a class="marca" href="#/panel">
+        <span class="marca-logo" data-icono="tendencia"></span>
+        <span class="marca-texto">
+          <strong>Mis Finanzas</strong>
+          <small>Control de gastos</small>
+        </span>
+      </a>
+
+      <nav class="navegacion" aria-label="Secciones">
+        <span class="navegacion-titulo">General</span>
+        <a href="#/panel" data-vista="panel" data-icono="panel"><span>Panel</span></a>
+        <a href="#/movimientos" data-vista="movimientos" data-icono="movimientos"><span>Movimientos</span></a>
+        <a href="#/categorias" data-vista="categorias" data-icono="etiqueta"><span>Categorías</span></a>
+        <a href="#/presupuestos" data-vista="presupuestos" data-icono="objetivo"><span>Presupuestos</span></a>
+      </nav>
+
+      <div class="barra-pie">
+        <button type="button" class="boton-lateral js-tema"></button>
+        <a class="boton-lateral" href="/docs" target="_blank" rel="noopener" data-icono="externo"><span>Documentación API</span></a>
+      </div>
+    </aside>
+
+    <main class="contenido" id="contenido"></main>
+  </div>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  <div id="notificaciones" class="notificaciones" aria-live="polite"></div>
+  <dialog id="dialogo" class="dialogo"></dialog>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
