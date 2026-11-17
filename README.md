@@ -163,10 +163,28 @@ Los errores de tipo (p. ej. texto en `monto`) los responde FastAPI con 422.
 
 ## Ejecutar la aplicación
 
-```bash
-python seed.py                  # cuentas y datos de demostración (opcional)
-uvicorn app.main:app --reload
+La forma más simple (Windows, no hace falta activar el entorno virtual):
+
+```powershell
+.\iniciar.bat
 ```
+
+Enciende PostgreSQL con Docker y arranca la app en el puerto 8000 (otro
+puerto: `.\iniciar.bat 8080`). Para cargar los datos de demostración, una vez:
+
+```powershell
+.venv\Scripts\python.exe seed.py
+```
+
+Equivalente manual, con el entorno virtual activado (`.venv\Scripts\activate`):
+
+```bash
+python seed.py
+uvicorn app.main:app --reload --reload-dir app
+```
+
+Si PowerShell dice que `uvicorn` o `python` "no se reconoce", es porque el
+entorno virtual no está activado en esa terminal: usa `.\iniciar.bat`.
 
 - Interfaz web: <http://localhost:8000>
 - Documentación de la API: <http://localhost:8000/docs> (botón **Authorize**
