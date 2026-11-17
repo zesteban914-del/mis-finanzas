@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.database import Base, SesionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import RolUsuario, Usuario  # noqa: E402
+from app.models import Plan, RolUsuario, Usuario  # noqa: E402
 
 CONTRASENA = "Clave12345"
 
@@ -37,14 +37,19 @@ def cliente(cliente_anonimo):
     return cliente_anonimo
 
 
-def registrar(cliente, email, nombre="Usuario", categorias_iniciales=False) -> dict:
+def registrar(
+    cliente, email, nombre="Usuario", categorias_iniciales=False, tipo="PERSONAL", **extra
+) -> dict:
     respuesta = cliente.post(
         "/auth/registro",
         json={
+            "tipo_cuenta": tipo,
             "nombre": nombre,
             "email": email,
             "contrasena": CONTRASENA,
+            "acepta_terminos": True,
             "crear_categorias_iniciales": categorias_iniciales,
+            **extra,
         },
     )
     assert respuesta.status_code == 201, respuesta.text
@@ -55,14 +60,23 @@ def encabezado(sesion: dict) -> dict:
     return {"Authorization": f"Bearer {sesion['access_token']}"}
 
 
-def convertir_en_admin(email: str) -> None:
+def _modificar_usuario(email: str, **cambios) -> None:
     db = SesionLocal()
     try:
         usuario = db.query(Usuario).filter(Usuario.email == email).one()
-        usuario.rol = RolUsuario.ADMIN
+        for campo, valor in cambios.items():
+            setattr(usuario, campo, valor)
         db.commit()
     finally:
         db.close()
+
+
+def convertir_en_admin(email: str) -> None:
+    _modificar_usuario(email, rol=RolUsuario.ADMIN)
+
+
+def activar_pro(email: str) -> None:
+    _modificar_usuario(email, plan=Plan.PRO)
 
 
 def crear_categoria(cliente, nombre="Comida", headers=None) -> int:

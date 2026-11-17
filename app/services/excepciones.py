@@ -1,7 +1,7 @@
 """Excepciones de negocio.
 
 Los servicios lanzan estas excepciones y la aplicación (main.py) las
-traduce a códigos HTTP: 400, 401, 403, 404 y 409. Así la capa de negocio
+traduce a códigos HTTP: 400, 401, 402, 403, 404 y 409. Así la capa de negocio
 no depende de FastAPI y se puede probar de forma aislada.
 """
 
@@ -30,3 +30,7 @@ class NoAutenticado(ErrorDeAplicacion):
 
 class SinPermiso(ErrorDeAplicacion):
     """La sesión es válida pero no alcanza para esta acción → HTTP 403."""
+
+
+class LimiteDelPlan(ErrorDeAplicacion):
+    """La acción requiere el plan Pro → HTTP 402 (Payment Required)."""

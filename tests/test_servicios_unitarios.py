@@ -31,8 +31,10 @@ def db():
 
 
 @pytest.fixture()
-def usuario_id(db):
-    return RepositorioUsuarios(db).crear("Ana", "ana@correo.com", "hash-de-prueba").id
+def usuario(db):
+    return RepositorioUsuarios(db).crear(
+        nombre="Ana", email="ana@correo.com", contrasena_hash="hash-de-prueba"
+    )
 
 
 def nuevo_movimiento(categoria_id, tipo=TipoMovimiento.GASTO, monto="100", fecha=None):
@@ -44,38 +46,38 @@ def nuevo_movimiento(categoria_id, tipo=TipoMovimiento.GASTO, monto="100", fecha
     )
 
 
-def test_servicio_rechaza_monto_cero(db, usuario_id):
-    categoria = ServicioCategorias(db, usuario_id).crear(CategoriaCrear(nombre="Comida"))
+def test_servicio_rechaza_monto_cero(db, usuario):
+    categoria = ServicioCategorias(db, usuario).crear(CategoriaCrear(nombre="Comida"))
 
     with pytest.raises(ErrorDeValidacion, match="mayor que 0"):
-        ServicioMovimientos(db, usuario_id).crear(nuevo_movimiento(categoria.id, monto="0"))
+        ServicioMovimientos(db, usuario).crear(nuevo_movimiento(categoria.id, monto="0"))
 
 
-def test_servicio_rechaza_fecha_futura(db, usuario_id):
-    categoria = ServicioCategorias(db, usuario_id).crear(CategoriaCrear(nombre="Comida"))
+def test_servicio_rechaza_fecha_futura(db, usuario):
+    categoria = ServicioCategorias(db, usuario).crear(CategoriaCrear(nombre="Comida"))
     manana = date.today() + timedelta(days=1)
 
     with pytest.raises(ErrorDeValidacion, match="futura"):
-        ServicioMovimientos(db, usuario_id).crear(nuevo_movimiento(categoria.id, fecha=manana))
+        ServicioMovimientos(db, usuario).crear(nuevo_movimiento(categoria.id, fecha=manana))
 
 
-def test_servicio_calcula_saldo(db, usuario_id):
-    categoria = ServicioCategorias(db, usuario_id).crear(CategoriaCrear(nombre="General"))
-    movimientos = ServicioMovimientos(db, usuario_id)
+def test_servicio_calcula_saldo(db, usuario):
+    categoria = ServicioCategorias(db, usuario).crear(CategoriaCrear(nombre="General"))
+    movimientos = ServicioMovimientos(db, usuario)
     movimientos.crear(nuevo_movimiento(categoria.id, TipoMovimiento.INGRESO, "1000"))
     movimientos.crear(nuevo_movimiento(categoria.id, TipoMovimiento.GASTO, "250.75"))
 
-    saldo = ServicioReportes(db, usuario_id).saldo()
+    saldo = ServicioReportes(db, usuario).saldo()
 
     assert saldo.saldo == Decimal("749.25")
 
 
-def test_servicio_detecta_presupuesto_superado(db, usuario_id):
-    categoria = ServicioCategorias(db, usuario_id).crear(CategoriaCrear(nombre="Comida"))
-    presupuestos = ServicioPresupuestos(db, usuario_id)
+def test_servicio_detecta_presupuesto_superado(db, usuario):
+    categoria = ServicioCategorias(db, usuario).crear(CategoriaCrear(nombre="Comida"))
+    presupuestos = ServicioPresupuestos(db, usuario)
     presupuestos.crear(PresupuestoCrear(mes="2026-11", limite=Decimal("100")))
 
-    _, alerta = ServicioMovimientos(db, usuario_id).crear(
+    _, alerta = ServicioMovimientos(db, usuario).crear(
         nuevo_movimiento(categoria.id, monto="150")
     )
 
@@ -83,10 +85,10 @@ def test_servicio_detecta_presupuesto_superado(db, usuario_id):
     assert presupuestos.estado("2026-11").excedido is True
 
 
-def test_servicio_no_elimina_categoria_con_movimientos(db, usuario_id):
-    servicio = ServicioCategorias(db, usuario_id)
+def test_servicio_no_elimina_categoria_con_movimientos(db, usuario):
+    servicio = ServicioCategorias(db, usuario)
     categoria = servicio.crear(CategoriaCrear(nombre="Comida"))
-    ServicioMovimientos(db, usuario_id).crear(nuevo_movimiento(categoria.id))
+    ServicioMovimientos(db, usuario).crear(nuevo_movimiento(categoria.id))
 
     with pytest.raises(ConflictoDeDatos):
         servicio.eliminar(categoria.id)

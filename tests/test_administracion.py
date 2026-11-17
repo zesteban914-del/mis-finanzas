@@ -42,12 +42,12 @@ def test_admin_ve_estadisticas(cliente_anonimo):
 
     datos = cliente_anonimo.get("/admin/estadisticas", headers=admin).json()
 
-    assert datos == {
-        "total_usuarios": 2,
-        "usuarios_activos": 2,
-        "administradores": 1,
-        "movimientos_registrados": 1,
-    }
+    assert datos["total_usuarios"] == 2
+    assert datos["usuarios_activos"] == 2
+    assert datos["administradores"] == 1
+    assert datos["movimientos_registrados"] == 1
+    assert datos["cuentas_personales"] == 2
+    assert datos["cuentas_pro"] == 0
 
 
 def test_cuenta_desactivada_pierde_el_acceso(cliente_anonimo):

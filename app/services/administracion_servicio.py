@@ -2,7 +2,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from app.models import RolUsuario, Usuario
+from app.models import Plan, RolUsuario, TipoCuenta, Usuario
 from app.repositories import RepositorioUsuarios
 from app.schemas import (
     CambioUsuarioAdmin,
@@ -14,7 +14,7 @@ from app.services.excepciones import ErrorDeValidacion, RecursoNoEncontrado
 
 
 class ServicioAdministracion:
-    """Gestión de cuentas por parte de un administrador.
+    """Gestión de cuentas por parte de un administrador de la plataforma.
 
     Por privacidad, el administrador ve datos de las cuentas y cuántos
     movimientos tiene cada una, pero nunca montos ni descripciones.
@@ -34,11 +34,17 @@ class ServicioAdministracion:
         ]
 
     def estadisticas(self) -> EstadisticasAdmin:
+        r = self.repositorio
         return EstadisticasAdmin(
-            total_usuarios=self.repositorio.contar(),
-            usuarios_activos=self.repositorio.contar(activo=True),
-            administradores=self.repositorio.contar(rol=RolUsuario.ADMIN),
-            movimientos_registrados=self.repositorio.contar_movimientos(),
+            total_usuarios=r.contar(),
+            usuarios_activos=r.contar(activo=True),
+            administradores=r.contar(rol=RolUsuario.ADMIN),
+            movimientos_registrados=r.contar_movimientos(),
+            cuentas_personales=r.contar_titulares(tipo_cuenta=TipoCuenta.PERSONAL),
+            cuentas_negocio=r.contar_titulares(tipo_cuenta=TipoCuenta.NEGOCIO),
+            cuentas_pro=r.contar_titulares(plan=Plan.PRO),
+            solicitudes_pro=r.contar(Usuario.solicito_pro_en.isnot(None), plan=Plan.GRATIS),
+            ingreso_mensual_estimado=r.ingreso_mensual_estimado(),
         )
 
     def actualizar_usuario(self, usuario_id: int, cambios: CambioUsuarioAdmin) -> Usuario:
@@ -53,4 +59,10 @@ class ServicioAdministracion:
             raise ErrorDeValidacion(
                 "No puedes desactivar tu propia cuenta ni quitarte el rol de administrador"
             )
+        if "plan" in datos:
+            if usuario.negocio_id:
+                raise ErrorDeValidacion(
+                    "Los miembros de un equipo usan el plan del negocio; cámbialo en la cuenta del propietario"
+                )
+            datos["solicito_pro_en"] = None  # la solicitud queda atendida
         return self.repositorio.actualizar(usuario, **datos)

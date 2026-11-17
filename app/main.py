@@ -15,14 +15,17 @@ from app.controllers import (
     administracion,
     autenticacion,
     categorias,
+    funciones,
     movimientos,
     presupuestos,
     reportes,
 )
-from app.database import Base, engine
+from app.database import engine
+from app.migraciones import preparar_base_de_datos
 from app.services.excepciones import (
     ConflictoDeDatos,
     ErrorDeValidacion,
+    LimiteDelPlan,
     NoAutenticado,
     RecursoNoEncontrado,
     SinPermiso,
@@ -33,14 +36,14 @@ registro = logging.getLogger("uvicorn.error")
 
 @asynccontextmanager
 async def ciclo_de_vida(app: FastAPI):
-    """Crea las tablas al iniciar; si la BD no responde, lo explica claramente."""
+    """Aplica las migraciones al iniciar; si la BD no responde, lo explica claramente."""
     if config.CLAVE_SECRETA == config.CLAVE_DE_DESARROLLO:
         registro.warning(
             "Usando la clave de desarrollo para firmar sesiones. "
             "En producción define la variable de entorno CLAVE_SECRETA."
         )
     try:
-        Base.metadata.create_all(bind=engine)
+        preparar_base_de_datos()
     except OperationalError as error:
         motivo = str(error.orig).strip().splitlines()[0]
         registro.error(
@@ -58,20 +61,27 @@ app = FastAPI(
     lifespan=ciclo_de_vida,
     title="Mis Finanzas · Control de Gastos",
     description=(
-        "API para registrar ingresos y gastos, administrar categorías, "
-        "consultar el saldo, generar resúmenes mensuales y controlar "
-        "presupuestos. Cada usuario ve solo sus propios datos.\n\n"
+        "API de finanzas para personas y negocios: ingresos y gastos, "
+        "categorías, presupuestos (mensual y por categoría), recurrentes, "
+        "metas, deudas, cajas, equipo con roles y comprobantes. Cada cuenta "
+        "ve solo sus propios datos.\n\n"
         "**Para probarla aquí:** crea una cuenta en `POST /auth/registro` y "
         "luego usa el botón **Authorize** con tu correo y contraseña."
     ),
-    version="2.0.0",
+    version="3.0.0",
 )
 
 app.include_router(autenticacion.router)
+app.include_router(autenticacion.planes)
+app.include_router(autenticacion.equipo)
 app.include_router(categorias.router)
 app.include_router(movimientos.router)
 app.include_router(presupuestos.router)
 app.include_router(reportes.router)
+app.include_router(funciones.recurrentes)
+app.include_router(funciones.metas)
+app.include_router(funciones.deudas)
+app.include_router(funciones.cajas)
 app.include_router(administracion.router)
 
 
@@ -90,6 +100,7 @@ app.add_exception_handler(ErrorDeValidacion, _crear_manejador(400))
 app.add_exception_handler(
     NoAutenticado, _crear_manejador(401, {"WWW-Authenticate": "Bearer"})
 )
+app.add_exception_handler(LimiteDelPlan, _crear_manejador(402))
 app.add_exception_handler(SinPermiso, _crear_manejador(403))
 app.add_exception_handler(RecursoNoEncontrado, _crear_manejador(404))
 app.add_exception_handler(ConflictoDeDatos, _crear_manejador(409))

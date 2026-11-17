@@ -12,7 +12,7 @@ class TipoMovimiento(str, enum.Enum):
 
 
 class Movimiento(Base):
-    """Un ingreso o un gasto registrado por un usuario."""
+    """Un ingreso o un gasto registrado en una cuenta."""
 
     __tablename__ = "movimientos"
 
@@ -23,5 +23,31 @@ class Movimiento(Base):
     descripcion = Column(String(255), nullable=False, default="")
     categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    # Opcionales: caja del negocio, quién lo registró y si salió de un recurrente.
+    caja_id = Column(Integer, ForeignKey("cajas.id"), nullable=True, index=True)
+    registrado_por_id = Column(
+        Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    recurrente_id = Column(
+        Integer, ForeignKey("recurrentes.id", ondelete="SET NULL"), nullable=True
+    )
 
     categoria = relationship("Categoria", back_populates="movimientos")
+    registrado_por = relationship(
+        "Usuario", foreign_keys=[registrado_por_id], lazy="selectin"
+    )
+    comprobante = relationship(
+        "Comprobante",
+        uselist=False,
+        lazy="selectin",
+        back_populates="movimiento",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def tiene_comprobante(self) -> bool:
+        return self.comprobante is not None
+
+    @property
+    def registrado_por_nombre(self):
+        return self.registrado_por.nombre if self.registrado_por else None

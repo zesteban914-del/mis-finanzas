@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import Presupuesto, TipoMovimiento
+from app.models import Presupuesto, TipoMovimiento, Usuario
 from app.repositories import RepositorioMovimientos, RepositorioPresupuestos
 from app.schemas import EstadoPresupuesto, PresupuestoCrear
 from app.services.excepciones import (
@@ -19,11 +19,11 @@ def formato_pesos(valor) -> str:
 
 
 class ServicioPresupuestos:
-    """Reglas de negocio de los presupuestos mensuales de un usuario."""
+    """Reglas de negocio de los presupuestos mensuales (límite total del mes)."""
 
-    def __init__(self, db: Session, usuario_id: int):
-        self.repositorio = RepositorioPresupuestos(db, usuario_id)
-        self.repositorio_movimientos = RepositorioMovimientos(db, usuario_id)
+    def __init__(self, db: Session, usuario: Usuario):
+        self.repositorio = RepositorioPresupuestos(db, usuario.titular_id)
+        self.repositorio_movimientos = RepositorioMovimientos(db, usuario.titular_id)
 
     def crear(self, datos: PresupuestoCrear) -> Presupuesto:
         validar_mes(datos.mes)

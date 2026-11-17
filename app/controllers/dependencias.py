@@ -1,8 +1,11 @@
 """Dependencias compartidas por los controladores (inyección de dependencias).
 
 FastAPI las ejecuta antes de cada endpoint: leen el token del encabezado
-`Authorization: Bearer <token>`, identifican al usuario y entregan el
-servicio ya configurado para ese usuario.
+`Authorization: Bearer <token>`, identifican al usuario, verifican que
+tenga el permiso y la función necesarios, y entregan el servicio listo.
+
+Uso en un endpoint:
+    servicio: ServicioCategorias = Depends(servicio(ServicioCategorias, Permiso.GESTIONAR))
 """
 
 from typing import Optional
@@ -13,14 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.database import obtener_db
 from app.models import RolUsuario, Usuario
-from app.services import (
-    ServicioAdministracion,
-    ServicioAutenticacion,
-    ServicioCategorias,
-    ServicioMovimientos,
-    ServicioPresupuestos,
-    ServicioReportes,
-)
+from app.permisos import Funcion, Permiso
+from app.services import ServicioAdministracion, ServicioAutenticacion
+from app.services.autorizacion import exigir_funcion, exigir_permiso
 from app.services.excepciones import SinPermiso
 
 # auto_error=False: si falta el token respondemos con nuestro propio mensaje.
@@ -33,36 +31,25 @@ def obtener_usuario_actual(
     return ServicioAutenticacion(db).usuario_desde_token(token)
 
 
-def requerir_administrador(
-    usuario: Usuario = Depends(obtener_usuario_actual),
-) -> Usuario:
+def servicio(clase, permiso: Optional[Permiso] = None, funcion: Optional[Funcion] = None):
+    """Crea una dependencia que verifica permiso/función y construye el servicio."""
+
+    def construir(
+        db: Session = Depends(obtener_db), usuario: Usuario = Depends(obtener_usuario_actual)
+    ):
+        if funcion is not None:
+            exigir_funcion(usuario, funcion)
+        if permiso is not None:
+            exigir_permiso(usuario, permiso)
+        return clase(db, usuario)
+
+    return construir
+
+
+def requerir_administrador(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuario:
     if usuario.rol != RolUsuario.ADMIN:
         raise SinPermiso("Esta sección es solo para administradores")
     return usuario
-
-
-def servicio_categorias(
-    db: Session = Depends(obtener_db), usuario: Usuario = Depends(obtener_usuario_actual)
-) -> ServicioCategorias:
-    return ServicioCategorias(db, usuario.id)
-
-
-def servicio_movimientos(
-    db: Session = Depends(obtener_db), usuario: Usuario = Depends(obtener_usuario_actual)
-) -> ServicioMovimientos:
-    return ServicioMovimientos(db, usuario.id)
-
-
-def servicio_presupuestos(
-    db: Session = Depends(obtener_db), usuario: Usuario = Depends(obtener_usuario_actual)
-) -> ServicioPresupuestos:
-    return ServicioPresupuestos(db, usuario.id)
-
-
-def servicio_reportes(
-    db: Session = Depends(obtener_db), usuario: Usuario = Depends(obtener_usuario_actual)
-) -> ServicioReportes:
-    return ServicioReportes(db, usuario.id)
 
 
 def servicio_administracion(

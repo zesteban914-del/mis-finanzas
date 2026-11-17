@@ -28,7 +28,7 @@ def test_no_permite_correo_duplicado(cliente_anonimo):
 
     respuesta = cliente_anonimo.post(
         "/auth/registro",
-        json={"nombre": "Otra", "email": "ANA@correo.com", "contrasena": CONTRASENA},
+        json={"nombre": "Otra", "email": "ANA@correo.com", "contrasena": CONTRASENA, "acepta_terminos": True},
     )
 
     assert respuesta.status_code == 409
@@ -37,7 +37,7 @@ def test_no_permite_correo_duplicado(cliente_anonimo):
 def test_rechaza_contrasena_debil(cliente_anonimo):
     respuesta = cliente_anonimo.post(
         "/auth/registro",
-        json={"nombre": "Ana", "email": "ana@correo.com", "contrasena": "12345678"},
+        json={"nombre": "Ana", "email": "ana@correo.com", "contrasena": "12345678", "acepta_terminos": True},
     )
 
     assert respuesta.status_code == 400
@@ -47,7 +47,7 @@ def test_rechaza_contrasena_debil(cliente_anonimo):
 def test_rechaza_correo_invalido(cliente_anonimo):
     respuesta = cliente_anonimo.post(
         "/auth/registro",
-        json={"nombre": "Ana", "email": "no-es-un-correo", "contrasena": CONTRASENA},
+        json={"nombre": "Ana", "email": "no-es-un-correo", "contrasena": CONTRASENA, "acepta_terminos": True},
     )
 
     assert respuesta.status_code == 400
