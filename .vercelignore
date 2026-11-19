@@ -1,0 +1,11 @@
+# Archivos que no se suben a Vercel (no los necesita la app en producción).
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+.claude/
+iniciar.bat
+docker-compose.yml

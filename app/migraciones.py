@@ -4,7 +4,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from app.database import Base, engine
 
@@ -27,6 +27,9 @@ def preparar_base_de_datos() -> None:
     configuracion = Config(str(RAIZ / "alembic.ini"))
     configuracion.set_main_option("script_location", str(RAIZ / "migraciones"))
     with engine.begin() as conexion:
+        # En la nube pueden arrancar varias instancias a la vez: este candado de
+        # PostgreSQL hace que solo una aplique las migraciones y las demás esperen.
+        conexion.execute(text("SELECT pg_advisory_xact_lock(724519)"))
         configuracion.attributes["connection"] = conexion
         tablas = inspect(conexion).get_table_names()
         if "usuarios" in tablas and "alembic_version" not in tablas:

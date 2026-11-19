@@ -1,0 +1,5 @@
+# Dependencias de la app + herramientas de pruebas (solo para desarrollo).
+-r requirements.txt
+pytest==8.3.4
+pytest-cov==6.0.0
+httpx==0.28.1

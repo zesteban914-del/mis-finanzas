@@ -21,6 +21,7 @@ from app.controllers import (
     reportes,
 )
 from app.database import engine
+from app.datos_demo import cargar_datos_si_vacia
 from app.migraciones import preparar_base_de_datos
 from app.services.excepciones import (
     ConflictoDeDatos,
@@ -38,12 +39,21 @@ registro = logging.getLogger("uvicorn.error")
 async def ciclo_de_vida(app: FastAPI):
     """Aplica las migraciones al iniciar; si la BD no responde, lo explica claramente."""
     if config.CLAVE_SECRETA == config.CLAVE_DE_DESARROLLO:
+        if config.EN_VERCEL:
+            # La clave de desarrollo está publicada en GitHub: con ella cualquiera
+            # podría fabricar sesiones válidas. En la nube no se permite.
+            raise RuntimeError(
+                "Falta la variable de entorno CLAVE_SECRETA en Vercel "
+                "(Settings → Environment Variables). La app no arranca sin ella."
+            )
         registro.warning(
             "Usando la clave de desarrollo para firmar sesiones. "
             "En producción define la variable de entorno CLAVE_SECRETA."
         )
     try:
         preparar_base_de_datos()
+        if config.CARGAR_DATOS_DEMO and cargar_datos_si_vacia():
+            registro.info("Base vacía: se cargaron las cuentas y datos de demostración.")
     except OperationalError as error:
         motivo = str(error.orig).strip().splitlines()[0]
         registro.error(

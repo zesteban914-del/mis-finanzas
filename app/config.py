@@ -16,3 +16,10 @@ MINUTOS_EXPIRACION_TOKEN = int(os.getenv("MINUTOS_EXPIRACION_TOKEN", "480"))
 # Iteraciones de PBKDF2 para cifrar contraseñas (valor recomendado por OWASP).
 # Las pruebas usan un valor bajo para correr rápido.
 ITERACIONES_HASH = int(os.getenv("ITERACIONES_HASH", "600000"))
+
+# Vercel define la variable VERCEL en sus servidores.
+EN_VERCEL = bool(os.getenv("VERCEL"))
+
+# Si está activa y la base no tiene usuarios, al arrancar se cargan las cuentas
+# y datos de demostración (útil en Vercel, donde no se puede ejecutar seed.py).
+CARGAR_DATOS_DEMO = os.getenv("CARGAR_DATOS_DEMO", "").strip().lower() in {"1", "true", "si", "sí"}

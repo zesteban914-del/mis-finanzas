@@ -161,7 +161,7 @@ Los errores de tipo (p. ej. texto en `monto`) los responde FastAPI con 422.
    ```powershell
    py -3.12 -m venv .venv
    .venv\Scripts\activate
-   pip install -r requirements.txt
+   pip install -r requirements-dev.txt     # incluye pytest; en producción basta requirements.txt
    ```
 3. Variables de entorno (opcionales en desarrollo):
 
@@ -271,8 +271,31 @@ en `/docs`.
 - Al registrar un gasto que supera el presupuesto del mes o el límite de su categoría, la respuesta trae la alerta.
 - Los límites de cada plan se verifican al crear recurrentes, metas, cajas y miembros, al exportar a Excel y al adjuntar comprobantes.
 
+## Publicar en Vercel
+
+La app funciona en [Vercel](https://vercel.com) sin cambios de código: Vercel
+detecta FastAPI en `app/main.py`, instala `requirements.txt` y sirve la
+interfaz. La base de datos es PostgreSQL de **Neon** (plan gratuito).
+
+1. En Vercel: **Add New → Project**, importa el repositorio de GitHub y pulsa
+   **Deploy** (el primer despliegue fallará porque aún no hay base ni clave; es normal).
+2. En el proyecto: **Storage → Create Database → Neon** y conéctala al
+   proyecto. Vercel agrega sola la variable `DATABASE_URL`.
+3. En **Settings → Environment Variables** agrega:
+
+   | Variable | Valor |
+   |----------|-------|
+   | `CLAVE_SECRETA` | Una clave larga y aleatoria. Genérala con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+   | `CARGAR_DATOS_DEMO` | `1` si quieres las cuentas de demostración (se cargan solo si la base está vacía) |
+
+4. **Deployments → Redeploy**. Al arrancar, la app aplica las migraciones en
+   Neon y, si lo pediste, carga la demostración.
+
+Cada `git push` a `main` publica una versión nueva automáticamente.
+Sin `CLAVE_SECRETA` la app **no arranca** en Vercel: la clave de desarrollo
+está en este repositorio público y con ella cualquiera podría fabricar sesiones.
+
 ## Antes de ponerla en producción
-- Definir `CLAVE_SECRETA` y servir la app con HTTPS.
 - Integrar una pasarela de pago (Wompi, PayU o Mercado Pago) para cobrar el plan Pro.
 - Enviar correos: recuperar contraseña, verificar correo y alertas de presupuesto.
 - Limitar los intentos de inicio de sesión y ofrecer verificación en dos pasos.

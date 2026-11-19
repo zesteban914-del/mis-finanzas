@@ -4,21 +4,36 @@ import os
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
-URL_BASE_DE_DATOS = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg2://postgres:postgres@localhost:5434/control_gastos",
+URL_LOCAL = "postgresql+psycopg2://postgres:postgres@localhost:5434/control_gastos"
+
+
+def normalizar_url(url: str) -> str:
+    """Acepta las URLs que entregan los proveedores en la nube.
+
+    Neon/Vercel y otros usan el prefijo `postgres://`, que SQLAlchemy ya no
+    reconoce; se cambia por `postgresql+psycopg2://` (el controlador instalado).
+    """
+    for prefijo in ("postgres://", "postgresql://"):
+        if url.startswith(prefijo):
+            return "postgresql+psycopg2://" + url[len(prefijo):]
+    return url
+
+
+# DATABASE_URL: local o la que crea la integración de Neon en Vercel.
+URL_BASE_DE_DATOS = normalizar_url(
+    os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or URL_LOCAL
 )
 
 
 def crear_motor(url: str):
     """Crea el motor de base de datos.
 
-    SQLite en memoria (usado en las pruebas) necesita StaticPool y
-    check_same_thread=False para compartir una única conexión entre
-    todas las peticiones; de lo contrario cada conexión vería una
-    base de datos vacía distinta.
+    - SQLite en memoria (pruebas) necesita StaticPool y check_same_thread=False
+      para compartir una única conexión; si no, cada conexión vería una base vacía.
+    - En Vercel (funciones que se encienden y apagan) no se guardan conexiones
+      abiertas entre peticiones (NullPool); el pooler de Neon las administra.
     """
     if url.startswith("sqlite"):
         return create_engine(
@@ -26,7 +41,9 @@ def crear_motor(url: str):
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
-    return create_engine(url)
+    if os.getenv("VERCEL"):
+        return create_engine(url, poolclass=NullPool)
+    return create_engine(url, pool_pre_ping=True)
 
 
 engine = crear_motor(URL_BASE_DE_DATOS)
