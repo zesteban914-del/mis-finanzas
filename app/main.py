@@ -20,7 +20,7 @@ from app.controllers import (
     presupuestos,
     reportes,
 )
-from app.database import engine
+from app.database import SesionLocal, engine
 from app.claves import asegurar_clave_secreta
 from app.datos_demo import cargar_datos_si_vacia
 from app.migraciones import preparar_base_de_datos
@@ -34,6 +34,15 @@ from app.services.excepciones import (
 )
 
 registro = logging.getLogger("uvicorn.error")
+registro.setLevel(logging.INFO)  # en Vercel no hay uvicorn que configure este nivel
+
+
+def contar_usuarios() -> int:
+    db = SesionLocal()
+    try:
+        return db.query(models.Usuario.id).count()
+    finally:
+        db.close()
 
 
 @asynccontextmanager
@@ -45,6 +54,7 @@ async def ciclo_de_vida(app: FastAPI):
         registro.info("Clave de sesiones tomada de: %s", origen)
         if config.CARGAR_DATOS_DEMO and cargar_datos_si_vacia():
             registro.info("Base vacía: se cargaron las cuentas y datos de demostración.")
+        registro.info("Base de datos lista: %s usuarios registrados.", contar_usuarios())
     except OperationalError as error:
         motivo = str(error.orig).strip().splitlines()[0]
         registro.error(
@@ -108,19 +118,26 @@ app.add_exception_handler(ConflictoDeDatos, _crear_manejador(409))
 
 
 CARPETA_INTERFAZ = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=CARPETA_INTERFAZ), name="static")
+SIN_CACHE = {"Cache-Control": "no-cache"}  # el navegador revalida: nunca usa una versión vieja
 
 
-@app.middleware("http")
-async def revalidar_interfaz(request: Request, call_next):
-    """Evita que el navegador use una versión vieja de la interfaz tras un cambio."""
-    respuesta = await call_next(request)
-    if request.url.path == "/" or request.url.path.startswith("/static/"):
-        respuesta.headers["Cache-Control"] = "no-cache"
-    return respuesta
+class ArchivosSinCache(StaticFiles):
+    """StaticFiles con la cabecera no-cache.
+
+    Se hace aquí y no con un middleware porque Vercel solo sirve los archivos
+    desde su CDN cuando la app no tiene middlewares globales.
+    """
+
+    def file_response(self, *args, **kwargs):
+        respuesta = super().file_response(*args, **kwargs)
+        respuesta.headers.update(SIN_CACHE)
+        return respuesta
 
 
 @app.get("/", include_in_schema=False)
 def interfaz_web():
     """Sirve la interfaz web; esta consume los mismos endpoints de la API."""
-    return FileResponse(CARPETA_INTERFAZ / "index.html")
+    return FileResponse(CARPETA_INTERFAZ / "index.html", headers=SIN_CACHE)
+
+
+app.mount("/static", ArchivosSinCache(directory=CARPETA_INTERFAZ), name="static")
