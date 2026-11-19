@@ -168,7 +168,7 @@ Los errores de tipo (p. ej. texto en `monto`) los responde FastAPI con 422.
    | Variable | Para qué sirve | Por defecto |
    |----------|----------------|-------------|
    | `DATABASE_URL` | Conexión a PostgreSQL | `postgresql+psycopg2://postgres:postgres@localhost:5434/control_gastos` |
-   | `CLAVE_SECRETA` | Firma las sesiones. **Obligatoria en producción** | Clave de desarrollo (la app avisa) |
+   | `CLAVE_SECRETA` | Firma las sesiones | Una clave aleatoria que la app genera y guarda en la base |
    | `MINUTOS_EXPIRACION_TOKEN` | Duración de la sesión | `480` |
 
 ## Ejecutar la aplicación
@@ -285,15 +285,17 @@ interfaz. La base de datos es PostgreSQL de **Neon** (plan gratuito).
 
    | Variable | Valor |
    |----------|-------|
-   | `CLAVE_SECRETA` | Una clave larga y aleatoria. Genérala con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
    | `CARGAR_DATOS_DEMO` | `1` si quieres las cuentas de demostración (se cargan solo si la base está vacía) |
+   | `CLAVE_SECRETA` | *Opcional.* Si no la defines, la app genera una clave aleatoria y la guarda en la base |
 
 4. **Deployments → Redeploy**. Al arrancar, la app aplica las migraciones en
    Neon y, si lo pediste, carga la demostración.
 
 Cada `git push` a `main` publica una versión nueva automáticamente.
-Sin `CLAVE_SECRETA` la app **no arranca** en Vercel: la clave de desarrollo
-está en este repositorio público y con ella cualquiera podría fabricar sesiones.
+
+**Clave de las sesiones:** la primera vez que arranca, la app genera una clave
+aleatoria, la guarda en la tabla `configuracion` y la reutiliza siempre (nadie
+la escribe ni la ve). Si defines `CLAVE_SECRETA`, se usa esa en su lugar.
 
 ## Antes de ponerla en producción
 - Integrar una pasarela de pago (Wompi, PayU o Mercado Pago) para cobrar el plan Pro.

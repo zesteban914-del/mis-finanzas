@@ -39,10 +39,22 @@ def test_carga_la_demostracion_solo_si_la_base_esta_vacia(cliente_anonimo):
     assert total == 6
 
 
-def test_en_vercel_no_arranca_sin_clave_secreta(monkeypatch):
-    monkeypatch.setattr(config, "EN_VERCEL", True)
-    monkeypatch.setattr(config, "CLAVE_SECRETA", config.CLAVE_DE_DESARROLLO)
+def test_sin_variable_genera_una_clave_y_la_reutiliza(cliente_anonimo, monkeypatch):
+    monkeypatch.delenv("CLAVE_SECRETA", raising=False)
+    primera = config.CLAVE_SECRETA  # generada al arrancar el cliente de la prueba
 
-    with pytest.raises(RuntimeError, match="CLAVE_SECRETA"):
-        with TestClient(app):
-            pass
+    with TestClient(app):  # segundo arranque: debe leer la misma clave de la base
+        segunda = config.CLAVE_SECRETA
+
+    assert primera == segunda
+    assert primera != config.CLAVE_DE_DESARROLLO
+    assert len(primera) >= 40
+
+
+def test_la_variable_de_entorno_tiene_prioridad(cliente_anonimo, monkeypatch):
+    monkeypatch.setenv("CLAVE_SECRETA", "clave-definida-en-vercel")
+
+    with TestClient(app):
+        clave = config.CLAVE_SECRETA
+
+    assert clave == "clave-definida-en-vercel"
