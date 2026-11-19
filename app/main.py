@@ -33,8 +33,14 @@ from app.services.excepciones import (
     SinPermiso,
 )
 
-registro = logging.getLogger("uvicorn.error")
-registro.setLevel(logging.INFO)  # en Vercel no hay uvicorn que configure este nivel
+# Logger propio: en Vercel los de uvicorn no llegan a los registros.
+registro = logging.getLogger("mis_finanzas")
+registro.setLevel(logging.INFO)
+if not logging.getLogger().handlers:  # p. ej. al correr con uvicorn en local
+    _salida = logging.StreamHandler()
+    _salida.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    registro.addHandler(_salida)
+    registro.propagate = False
 
 
 def contar_usuarios() -> int:
